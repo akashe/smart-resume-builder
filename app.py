@@ -394,305 +394,42 @@ def edit_sections_page():
     st.info("👉 Next Steps: Go to 'Job Matching' → Complete company analysis → Use 'Edit Resume Sections' for AI suggestions")
 
 def job_matching_page():
-    st.header("🎯 Job Matching")
+    st.header("🎯 Enhanced Job Matching")
     
     if not st.session_state.resume_data:
         st.warning("Please upload and parse a resume first!")
         return
     
-    st.subheader("Job Description & Company Info")
+    st.markdown("**New Enhanced Workflow:** AI Enhances → You Review → AI Selects Best Match")
     
-    # Company name input
-    company_name = st.text_input(
-        "Company Name:", 
-        placeholder="e.g., Google, Stripe, Airbnb",
-        help="Enter the company name for detailed analysis"
-    )
+    # Initialize workflow state
+    if 'workflow_step' not in st.session_state:
+        st.session_state.workflow_step = 1
+    if 'enhanced_content' not in st.session_state:
+        st.session_state.enhanced_content = None
     
-    job_description = st.text_area(
-        "Paste the job description here:",
-        value=st.session_state.job_description,
-        height=200,
-        placeholder="Paste the complete job posting here..."
-    )
-    
-    st.session_state.job_description = job_description
-    
-    # Company Intelligence Analysis
-    if job_description.strip():
-        with st.expander("🎯 Company Intelligence & Positioning Strategy", expanded=False):
-            # Enhanced company research when name is provided
-            research_button_text = "🔍 Deep Company Research" if company_name.strip() else "🔍 Analyze Company DNA"
-            
-            if st.button(research_button_text, key="analyze_company"):
-                with st.spinner("Researching company and analyzing positioning strategy..."):
-                    try:
-                        # Do web research if company name provided
-                        company_research = {}
-                        if company_name.strip():
-                            # Use CompanyResearcher for structured company analysis
-                            researcher = CompanyResearcher()
-                            company_research = researcher.research_company_with_websearch(company_name, job_description)
-                            
-                            # Display research results
-                            research_display = researcher.format_research_for_display(company_research)
-                            
-                            with st.expander("🔍 Company Research Results", expanded=False):
-                                st.markdown(research_display)
-                                
-                                # Option to perform live web search
-                                if st.button("🌐 Perform Live Web Search", key="live_search"):
-                                    with st.spinner(f"Searching web for {company_name} information..."):
-                                        search_results_container = st.container()
-                                        
-                                        search_queries = [
-                                            f"{company_name} engineering culture tech stack",
-                                            f"{company_name} company size employees recent news",
-                                            f"{company_name} interview process technical hiring"
-                                        ]
-                                        
-                                        all_search_results = []
-                                        
-                                        for i, query in enumerate(search_queries):
-                                            try:
-                                                search_results_container.info(f"🔍 Searching: {query}")
-                                                
-                                                # Use the WebSearch tool - THIS IS THE ACTUAL IMPLEMENTATION
-                                                from streamlit.runtime.secrets import secrets
-                                                try:
-                                                    # This would be the actual WebSearch call
-                                                    # search_results = websearch(query)
-                                                    
-                                                    # For demonstration, show what would be searched
-                                                    mock_results = {
-                                                        "query": query,
-                                                        "results_count": "3-5 results",
-                                                        "sample_sources": [
-                                                            f"{company_name} careers page",
-                                                            f"{company_name} engineering blog",
-                                                            "TechCrunch or similar tech news"
-                                                        ]
-                                                    }
-                                                    
-                                                    all_search_results.append(mock_results)
-                                                    search_results_container.success(f"✅ Found results for: {query}")
-                                                    
-                                                    # Show what would be found
-                                                    with search_results_container.expander(f"Results for: {query}"):
-                                                        st.write("**Sample sources that would be analyzed:**")
-                                                        for source in mock_results["sample_sources"]:
-                                                            st.write(f"• {source}")
-                                                            
-                                                except Exception as search_error:
-                                                    search_results_container.warning(f"Web search not fully integrated yet: {search_error}")
-                                                    
-                                            except Exception as e:
-                                                search_results_container.error(f"Search failed for {query}: {str(e)}")
-                                        
-                                        if all_search_results:
-                                            search_results_container.success(f"✅ Completed web research for {company_name}")
-                                            search_results_container.info("💡 **Integration Note**: WebSearch tool is ready - would provide live company data")
-                                        else:
-                                            search_results_container.warning("⚠️ WebSearch integration needs to be activated")
-                            
-                            st.success(f"✅ Enhanced analysis for {company_name} with company-specific intelligence")
-                        
-                        positioning_coach = PositioningCoach()
-                        analysis_result = positioning_coach.analyze_and_reposition(
-                            st.session_state.resume_data, 
-                            job_description, 
-                            company_name or "Unknown Company"
-                        )
-                        
-                        # Extract results
-                        company_analysis = analysis_result["company_analysis"]
-                        fit_analysis = analysis_result["fit_analysis"]
-                        suggestions = analysis_result["repositioning_suggestions"]
-                        
-                        # Store analysis for use in other pages
-                        st.session_state.company_analysis = analysis_result
-                        st.session_state.positioning_suggestions = suggestions
-                        
-                        # Display company analysis
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Company Type", company_analysis['company_type'].title())
-                            st.metric("Confidence", f"{company_analysis['confidence']*100:.0f}%")
-                        with col2:
-                            st.metric("Current Fit Score", f"{fit_analysis['overall_fit_score']*100:.0f}%")
-                            if company_analysis['top_values']:
-                                st.write("**Top Values:**")
-                                for value in company_analysis['top_values'][:3]:
-                                    st.write(f"• {value.title()}")
-                        with col3:
-                            if company_analysis.get('red_flags'):
-                                st.write("**⚠️ Potential Red Flags:**")
-                                for flag in company_analysis['red_flags'][:2]:
-                                    st.write(f"• {flag}")
-                        
-                        # Show fit analysis
-                        if fit_analysis.get('strengths'):
-                            st.subheader("✅ Your Strengths for This Company")
-                            for strength in fit_analysis['strengths']:
-                                st.success(f"• {strength}")
-                        
-                        if fit_analysis.get('gaps'):
-                            st.subheader("⚠️ Areas to Address")
-                            for gap in fit_analysis['gaps']:
-                                st.warning(f"• {gap}")
-                        
-                        # Show repositioning suggestions
-                        if suggestions.get('experience_translations'):
-                            st.subheader("🔄 Suggested Experience Repositioning")
-                            for exp_suggestion in suggestions['experience_translations'][:2]:  # Show first 2
-                                with st.expander(f"💼 {exp_suggestion['position']} at {exp_suggestion['company']}"):
-                                    for suggestion in exp_suggestion['suggestions'][:3]:  # Show first 3 suggestions
-                                        col1, col2 = st.columns(2)
-                                        with col1:
-                                            st.text_area("Original:", suggestion['original'], height=60, disabled=True)
-                                        with col2:
-                                            st.text_area("Repositioned:", suggestion['repositioned'], height=60, disabled=True)
-                                        st.caption(f"💡 {suggestion['reasoning']}")
-                        
-                        # Show overall strategy
-                        if suggestions.get('overall_strategy'):
-                            strategy = suggestions['overall_strategy']
-                            st.subheader("📋 Overall Positioning Strategy")
-                            
-                            if strategy.get('golden_rules'):
-                                st.write("**Golden Rules:**")
-                                for rule in strategy['golden_rules'][:3]:
-                                    st.write(f"✅ {rule}")
-                            
-                            if strategy.get('things_to_avoid'):
-                                st.write("**Things to Avoid:**")
-                                for avoid in strategy['things_to_avoid'][:3]:
-                                    st.write(f"❌ {avoid}")
-                            
-                            if strategy.get('key_phrases_to_use'):
-                                st.write("**Key Phrases to Use:**")
-                                st.write(", ".join(strategy['key_phrases_to_use']))
-                        
-                    except Exception as e:
-                        st.error(f"Company analysis failed: {str(e)}")
-                        st.info("Continuing with standard job matching...")
-    
-    # Always show the button, make it more prominent
-    _, col2, _ = st.columns([1, 2, 1])
+    # Progress indicator
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        status1 = "✅" if st.session_state.workflow_step > 1 else "🔄" if st.session_state.workflow_step == 1 else "⏳"
+        st.write(f"{status1} **Step 1:** AI Enhance Content")
     with col2:
-        generate_button = st.button(
-            "🤖 Generate Matched Resume", 
-            type="primary",
-            use_container_width=True,
-            disabled=not job_description.strip()
-        )
+        status2 = "✅" if st.session_state.workflow_step > 2 else "🔄" if st.session_state.workflow_step == 2 else "⏳"
+        st.write(f"{status2} **Step 2:** Review & Edit")
+    with col3:
+        status3 = "✅" if st.session_state.workflow_step > 3 else "🔄" if st.session_state.workflow_step == 3 else "⏳"
+        st.write(f"{status3} **Step 3:** AI Select Best")
     
-    if generate_button and job_description.strip():
-        with st.spinner("AI is selecting the best content for this job..."):
-            try:
-                matcher = JobMatcher()
-                
-                # Generate matched content
-                selected_content = matcher.match_resume_to_job(
-                    st.session_state.resume_data,
-                    job_description
-                )
-                
-                st.session_state.selected_content = selected_content
-                
-                st.success("✅ Resume matched successfully!")
-                
-                # Display selected content with proper structured format
-                st.subheader("🎯 AI Selected Content")
-                
-                # Contact
-                if 'contact' in selected_content:
-                    contact = selected_content['contact']
-                    with st.expander("👤 Contact"):
-                        if contact.get('name'):
-                            st.write(f"**Name:** {contact['name']}")
-                        if contact.get('title'):
-                            st.write(f"**Title:** {contact['title']}")
-                        if contact.get('email'):
-                            st.write(f"**Email:** {contact['email']}")
-                        if contact.get('phone'):
-                            st.write(f"**Phone:** {contact['phone']}")
-                        if contact.get('location'):
-                            st.write(f"**Location:** {contact['location']}")
-                        if contact.get('linkedin'):
-                            st.write(f"**LinkedIn:** {contact['linkedin']}")
-                        if contact.get('github'):
-                            st.write(f"**GitHub:** {contact['github']}")
-                        if contact.get('website'):
-                            st.write(f"**Website:** {contact['website']}")
-                
-                # Summary
-                if 'summary' in selected_content:
-                    summary = selected_content['summary']
-                    with st.expander("📝 Summary"):
-                        selected_sentences = summary.get('selected_sentences', [])
-                        if selected_sentences:
-                            for i, sentence in enumerate(selected_sentences, 1):
-                                st.write(f"{i}. {sentence}")
-                        else:
-                            st.write("No sentences selected")
-                
-                # Experience
-                if 'experience' in selected_content:
-                    experiences = selected_content['experience']
-                    with st.expander("💼 Experience"):
-                        if experiences:
-                            for i, exp in enumerate(experiences, 1):
-                                st.write(f"**{i}. {exp.get('position', 'N/A')} at {exp.get('company', 'N/A')}**")
-                                if exp.get('selected_role_summary'):
-                                    st.write(f"📝 Role: {exp['selected_role_summary']}")
-                                if exp.get('selected_accomplishments'):
-                                    st.write("🎯 Selected accomplishments:")
-                                    for acc in exp['selected_accomplishments']:
-                                        st.write(f"  • {acc}")
-                        else:
-                            st.write("No experience selected")
-                
-                # Projects
-                if 'projects' in selected_content:
-                    projects = selected_content['projects']
-                    with st.expander("🚀 Projects"):
-                        if projects:
-                            for i, proj in enumerate(projects, 1):
-                                st.write(f"**{i}. {proj.get('name', 'N/A')}**")
-                                if proj.get('selected_description'):
-                                    st.write(f"📝 Description: {proj['selected_description']}")
-                        else:
-                            st.write("No projects selected")
-                
-                # Skills
-                if 'skills' in selected_content:
-                    skills = selected_content['skills']
-                    with st.expander("🛠️ Skills"):
-                        for category, skill_list in skills.items():
-                            if skill_list:
-                                st.write(f"**{category.title()}:** {', '.join(skill_list)}")
-                
-                # Generate initial markdown
-                markdown_content = matcher.generate_markdown(selected_content)
-                st.session_state.final_markdown = markdown_content
-                
-                st.info("👉 Go to 'Edit Markdown' to review and modify the generated resume")
-                
-            except Exception as e:
-                st.error(f"Error during job matching: {str(e)}")
-                
-                # Debug information
-                st.subheader("🔍 Debug Info")
-                st.write("Resume data structure:")
-                st.json(st.session_state.resume_data)
-                
-                if 'selected_content' in locals():
-                    st.write("Selected content structure:")
-                    st.json(selected_content)
+    st.divider()
     
-    elif not job_description.strip():
-        st.info("Please paste a job description to proceed")
+    # Step-specific content
+    if st.session_state.workflow_step == 1:
+        _render_step1_enhance_content()
+    elif st.session_state.workflow_step == 2:
+        _render_step2_review_enhancements()
+    elif st.session_state.workflow_step == 3:
+        _render_step3_generate_matched_resume()
+    
 
 def edit_markdown_page():
     st.header("📝 Edit Resume Sections (AI-Enhanced)")
@@ -817,8 +554,56 @@ def export_pdf_page():
         st.warning("Please upload and parse a resume first!")
         return
     
+    # Show what content will be used
+    if st.session_state.final_markdown:
+        st.success("✅ **Using Final Edited Markdown** - Your latest changes from Final Markdown Editor")
+        
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("📄 Export Markdown as PDF", type="primary"):
+                # Convert markdown to PDF directly
+                try:
+                    from markdown import markdown
+                    import pdfkit
+                    
+                    html_content = markdown(st.session_state.final_markdown)
+                    pdf_options = {
+                        'page-size': 'A4',
+                        'margin-top': '0.75in',
+                        'margin-right': '0.75in',
+                        'margin-bottom': '0.75in',
+                        'margin-left': '0.75in',
+                        'encoding': "UTF-8",
+                        'no-outline': None
+                    }
+                    
+                    pdf_bytes = pdfkit.from_string(html_content, False, options=pdf_options)
+                    
+                    st.download_button(
+                        label="⬇️ Download Markdown PDF",
+                        data=pdf_bytes,
+                        file_name="resume_final_markdown.pdf",
+                        mime="application/pdf"
+                    )
+                    st.success("✅ PDF generated from your final markdown!")
+                    
+                except ImportError:
+                    st.warning("📄 Markdown PDF export requires additional packages. Using theme-based export instead.")
+                except Exception as e:
+                    st.error(f"Markdown PDF export failed: {e}")
+        
+        with col2:
+            st.info("💡 **Alternative**: Use theme-based export below (uses resume data structure)")
+        
+        st.divider()
+    
+    elif st.session_state.selected_content:
+        st.info("📊 **Using Matched Resume Content** - AI-selected content for your target job")
+    else:
+        st.info("📋 **Using Original Resume Data** - Complete parsed resume")
+    
     # Theme Selection Section
-    st.subheader("🎨 Choose Resume Theme")
+    st.subheader("🎨 Choose Resume Theme (Structured Data Export)")
     
     try:
         theme_exporter = ThemeExporter()
@@ -877,8 +662,13 @@ def export_pdf_page():
             if st.button("📄 Generate PDF", type="primary"):
                 with st.spinner(f"Generating PDF with {selected_display}..."):
                     try:
-                        # Use selected content if available, otherwise use full resume data
-                        resume_data = st.session_state.selected_content or st.session_state.resume_data
+                        # Use final markdown if available, otherwise selected content or resume data
+                        if st.session_state.final_markdown:
+                            # Convert markdown back to resume data structure for theme export
+                            resume_data = st.session_state.resume_data  # Use original structure
+                            # Note: For now using resume data structure - could enhance to parse markdown
+                        else:
+                            resume_data = st.session_state.selected_content or st.session_state.resume_data
                         
                         pdf_bytes = theme_exporter.export_resume(
                             resume_data,
@@ -1314,6 +1104,477 @@ def _generate_markdown_from_sections():
     markdown += _generate_education_markdown()
     
     return markdown
+
+def _render_step1_enhance_content():
+    """Step 1: AI enhances all resume content"""
+    st.subheader("🔧 Step 1: AI Content Enhancement")
+    st.markdown("*AI will improve the language and impact of all your resume content*")
+    
+    # Job info input for context
+    company_name = st.text_input("Company Name:", placeholder="e.g., Google, Stripe, Microsoft", key="step1_company")
+    job_description = st.text_area("Job Description:", placeholder="Paste the job posting here...", height=150, key="step1_job_desc")
+    
+    if company_name.strip() and job_description.strip():
+        if st.button("🚀 Enhance All Content", type="primary"):
+            with st.spinner("AI is enhancing all your resume content..."):
+                try:
+                    # Store job info for later steps
+                    st.session_state.target_company = company_name
+                    st.session_state.target_job_description = job_description
+                    
+                    # Enhance all content using positioning coach
+                    positioning_coach = PositioningCoach()
+                    
+                    # Get company analysis
+                    company_analysis = positioning_coach.company_analyzer.analyze_company_dna(job_description, company_name)
+                    
+                    # Generate enhanced versions of all content
+                    enhanced_content = _generate_enhanced_content_for_all_sections(
+                        st.session_state.resume_data, 
+                        job_description, 
+                        company_analysis
+                    )
+                    
+                    # Store enhanced content
+                    st.session_state.enhanced_content = enhanced_content
+                    st.session_state.company_analysis = company_analysis
+                    
+                    # Move to next step
+                    st.session_state.workflow_step = 2
+                    st.success("✅ All content enhanced! Moving to review step...")
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"Enhancement failed: {str(e)}")
+                    st.info("You can continue with original content")
+    
+    else:
+        st.info("👆 Enter company name and job description to start AI enhancement")
+
+def _generate_enhanced_content_for_all_sections(resume_data, job_description, company_analysis):
+    """Generate enhanced versions of all resume sections"""
+    
+    enhanced_content = {
+        'summary': {'original': [], 'enhanced': []},
+        'experience': [],
+        'projects': [],
+        'skills': resume_data.get('skills', {})  # Skills don't need enhancement
+    }
+    
+    # Enhance summary sentences
+    if resume_data.get('summary', {}).get('sentences'):
+        sentences = resume_data['summary']['sentences']
+        enhanced_content['summary']['original'] = sentences.copy()
+        
+        # AI enhance each sentence
+        enhanced_sentences = []
+        for sentence in sentences:
+            enhanced_sentence = _enhance_single_content(
+                sentence, 
+                job_description, 
+                company_analysis, 
+                "summary sentence"
+            )
+            enhanced_sentences.append(enhanced_sentence)
+        
+        enhanced_content['summary']['enhanced'] = enhanced_sentences
+    
+    # Enhance experience entries
+    if resume_data.get('experience'):
+        for exp_idx, exp in enumerate(resume_data['experience']):
+            enhanced_exp = {
+                'experience_index': exp_idx,
+                'position': exp.get('position', ''),
+                'company': exp.get('company', ''),
+                'duration': exp.get('duration', ''),
+                'location': exp.get('location', ''),
+                'role_summaries': {
+                    'original': exp.get('role_summaries', []),
+                    'enhanced': []
+                },
+                'accomplishments': {
+                    'original': exp.get('accomplishments', []),
+                    'enhanced': []
+                }
+            }
+            
+            # Enhance role summaries
+            for role_summary in exp.get('role_summaries', []):
+                enhanced_role = _enhance_single_content(
+                    role_summary,
+                    job_description,
+                    company_analysis,
+                    "role summary"
+                )
+                enhanced_exp['role_summaries']['enhanced'].append(enhanced_role)
+            
+            # Enhance accomplishments
+            for accomplishment in exp.get('accomplishments', []):
+                enhanced_acc = _enhance_single_content(
+                    accomplishment,
+                    job_description,
+                    company_analysis,
+                    "accomplishment"
+                )
+                enhanced_exp['accomplishments']['enhanced'].append(enhanced_acc)
+            
+            enhanced_content['experience'].append(enhanced_exp)
+    
+    # Enhance projects
+    if resume_data.get('projects'):
+        for proj_idx, proj in enumerate(resume_data['projects']):
+            enhanced_proj = {
+                'project_index': proj_idx,
+                'name': proj.get('name', ''),
+                'url': proj.get('url', ''),
+                'technologies': proj.get('technologies', []),
+                'descriptions': {
+                    'original': proj.get('descriptions', []),
+                    'enhanced': []
+                }
+            }
+            
+            # Enhance descriptions
+            for description in proj.get('descriptions', []):
+                enhanced_desc = _enhance_single_content(
+                    description,
+                    job_description,
+                    company_analysis,
+                    "project description"
+                )
+                enhanced_proj['descriptions']['enhanced'].append(enhanced_desc)
+            
+            enhanced_content['projects'].append(enhanced_proj)
+    
+    return enhanced_content
+
+def _enhance_single_content(content, job_description, company_analysis, content_type):
+    """Use AI to enhance a single piece of content"""
+    
+    try:
+        from openai import OpenAI
+        import os
+        
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+        
+        company_type = company_analysis.get('company_type', 'tech')
+        top_values = company_analysis.get('top_values', [])
+        
+        prompt = f"""
+        Enhance this resume {content_type} for a {company_type} company.
+        
+        Original: "{content}"
+        
+        Company values: {', '.join(top_values)}
+        
+        Instructions:
+        - Keep the same core facts and achievements
+        - Improve language for impact and clarity
+        - Use terminology that resonates with {company_type} companies
+        - Make it more compelling while staying truthful
+        - Keep it concise but impactful
+        
+        Return only the enhanced version, no explanation.
+        """
+        
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=200
+        )
+        
+        return response.choices[0].message.content.strip()
+        
+    except Exception as e:
+        print(f"Enhancement failed for {content_type}: {e}")
+        return content  # Return original if enhancement fails
+
+
+def _render_step2_review_enhancements():
+    """Step 2: User reviews and edits enhanced content"""
+    st.subheader("✂️ Step 2: Review & Edit Enhanced Content")
+    st.markdown("*Review AI enhancements and edit them to your liking. Only approved content will be available for final selection.*")
+    
+    if not st.session_state.enhanced_content:
+        st.error("No enhanced content available. Please complete Step 1 first.")
+        if st.button("← Back to Step 1"):
+            st.session_state.workflow_step = 1
+            st.rerun()
+        return
+    
+    enhanced_content = st.session_state.enhanced_content
+    
+    # Review Summary
+    if enhanced_content.get('summary', {}).get('enhanced'):
+        st.subheader("📝 Summary Sentences")
+        
+        original_sentences = enhanced_content['summary']['original']
+        enhanced_sentences = enhanced_content['summary']['enhanced']
+        
+        approved_sentences = []
+        
+        for i, (original, enhanced) in enumerate(zip(original_sentences, enhanced_sentences)):
+            with st.expander(f"Summary Sentence {i+1}", expanded=False):
+                col1, col2, col3 = st.columns([2, 2, 1])
+                
+                with col1:
+                    st.text_area("Original:", original, height=60, disabled=True, key=f"review_sum_orig_{i}")
+                
+                with col2:
+                    edited_enhanced = st.text_area("Enhanced (Editable):", enhanced, height=60, key=f"review_sum_enh_{i}")
+                
+                with col3:
+                    use_original = st.checkbox("Use Original", key=f"review_sum_use_orig_{i}")
+                    use_enhanced = st.checkbox("Use Enhanced", value=True, key=f"review_sum_use_enh_{i}")
+                
+                # Collect approved content
+                if use_original:
+                    approved_sentences.append(original)
+                if use_enhanced:
+                    approved_sentences.append(edited_enhanced)
+        
+        # Store approved sentences
+        if 'approved_content' not in st.session_state:
+            st.session_state.approved_content = {}
+        st.session_state.approved_content['summary_sentences'] = approved_sentences
+    
+    # Review Experience
+    if enhanced_content.get('experience'):
+        st.subheader("💼 Experience")
+        
+        for exp_idx, enhanced_exp in enumerate(enhanced_content['experience']):
+            with st.expander(f"{enhanced_exp['position']} at {enhanced_exp['company']}", expanded=False):
+                
+                # Role summaries
+                if enhanced_exp['role_summaries']['enhanced']:
+                    st.write("**Role Summaries:**")
+                    approved_role_summaries = []
+                    
+                    for i, (original, enhanced) in enumerate(zip(
+                        enhanced_exp['role_summaries']['original'],
+                        enhanced_exp['role_summaries']['enhanced']
+                    )):
+                        col1, col2, col3 = st.columns([2, 2, 1])
+                        
+                        with col1:
+                            st.text_area("Original:", original, height=50, disabled=True, key=f"review_role_orig_{exp_idx}_{i}")
+                        
+                        with col2:
+                            edited_role = st.text_area("Enhanced:", enhanced, height=50, key=f"review_role_enh_{exp_idx}_{i}")
+                        
+                        with col3:
+                            use_orig_role = st.checkbox("Use Orig", key=f"review_role_use_orig_{exp_idx}_{i}")
+                            use_enh_role = st.checkbox("Use Enh", value=True, key=f"review_role_use_enh_{exp_idx}_{i}")
+                        
+                        if use_orig_role:
+                            approved_role_summaries.append(original)
+                        if use_enh_role:
+                            approved_role_summaries.append(edited_role)
+                
+                # Accomplishments
+                if enhanced_exp['accomplishments']['enhanced']:
+                    st.write("**Accomplishments:**")
+                    approved_accomplishments = []
+                    
+                    for i, (original, enhanced) in enumerate(zip(
+                        enhanced_exp['accomplishments']['original'],
+                        enhanced_exp['accomplishments']['enhanced']
+                    )):
+                        col1, col2, col3 = st.columns([2, 2, 1])
+                        
+                        with col1:
+                            st.text_area("Original:", original, height=60, disabled=True, key=f"review_acc_orig_{exp_idx}_{i}")
+                        
+                        with col2:
+                            edited_acc = st.text_area("Enhanced:", enhanced, height=60, key=f"review_acc_enh_{exp_idx}_{i}")
+                        
+                        with col3:
+                            use_orig_acc = st.checkbox("Use Orig", key=f"review_acc_use_orig_{exp_idx}_{i}")
+                            use_enh_acc = st.checkbox("Use Enh", value=True, key=f"review_acc_use_enh_{exp_idx}_{i}")
+                        
+                        if use_orig_acc:
+                            approved_accomplishments.append(original)
+                        if use_enh_acc:
+                            approved_accomplishments.append(edited_acc)
+                
+                # Store approved experience content
+                if 'approved_content' not in st.session_state:
+                    st.session_state.approved_content = {}
+                if 'experience' not in st.session_state.approved_content:
+                    st.session_state.approved_content['experience'] = {}
+                
+                st.session_state.approved_content['experience'][exp_idx] = {
+                    'role_summaries': approved_role_summaries if 'approved_role_summaries' in locals() else [],
+                    'accomplishments': approved_accomplishments if 'approved_accomplishments' in locals() else []
+                }
+    
+    # Review Projects
+    if enhanced_content.get('projects'):
+        st.subheader("🚀 Projects")
+        
+        for proj_idx, enhanced_proj in enumerate(enhanced_content['projects']):
+            with st.expander(f"Project: {enhanced_proj['name']}", expanded=False):
+                
+                if enhanced_proj['descriptions']['enhanced']:
+                    st.write("**Project Descriptions:**")
+                    approved_project_descriptions = []
+                    
+                    for i, (original, enhanced) in enumerate(zip(
+                        enhanced_proj['descriptions']['original'],
+                        enhanced_proj['descriptions']['enhanced']
+                    )):
+                        col1, col2, col3 = st.columns([2, 2, 1])
+                        
+                        with col1:
+                            st.text_area("Original:", original, height=60, disabled=True, key=f"review_proj_orig_{proj_idx}_{i}")
+                        
+                        with col2:
+                            edited_proj = st.text_area("Enhanced:", enhanced, height=60, key=f"review_proj_enh_{proj_idx}_{i}")
+                        
+                        with col3:
+                            use_orig_proj = st.checkbox("Use Orig", key=f"review_proj_use_orig_{proj_idx}_{i}")
+                            use_enh_proj = st.checkbox("Use Enh", value=True, key=f"review_proj_use_enh_{proj_idx}_{i}")
+                        
+                        if use_orig_proj:
+                            approved_project_descriptions.append(original)
+                        if use_enh_proj:
+                            approved_project_descriptions.append(edited_proj)
+                
+                # Store approved project content
+                if 'projects' not in st.session_state.approved_content:
+                    st.session_state.approved_content['projects'] = {}
+                
+                st.session_state.approved_content['projects'][proj_idx] = {
+                    'name': enhanced_proj['name'],
+                    'descriptions': approved_project_descriptions if 'approved_project_descriptions' in locals() else []
+                }
+    
+    # Navigation buttons
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("← Back to Step 1"):
+            st.session_state.workflow_step = 1
+            st.rerun()
+    
+    with col2:
+        if st.button("Continue to Step 3 →", type="primary"):
+            st.session_state.workflow_step = 3
+            st.success("✅ Enhanced content approved! Moving to AI selection...")
+            st.rerun()
+
+def _render_step3_generate_matched_resume():
+    """Step 3: AI selects best content mix for target job"""
+    st.subheader("🎯 Step 3: AI Selection from Enhanced Content")
+    st.markdown("*AI will now select the best combination of your approved enhanced content for this specific job.*")
+    
+    if not st.session_state.get('approved_content'):
+        st.error("No approved content available. Please complete Step 2 first.")
+        if st.button("← Back to Step 2"):
+            st.session_state.workflow_step = 2
+            st.rerun()
+        return
+    
+    # Show what's being selected from
+    approved = st.session_state.approved_content
+    
+    st.info(f"**Selection Pool:** {len(approved.get('summary_sentences', []))} summary sentences, "
+           f"{sum(len(exp.get('accomplishments', [])) for exp in approved.get('experience', {}).values())} accomplishments, "
+           f"{sum(len(proj.get('descriptions', [])) for proj in approved.get('projects', {}).values())} project descriptions")
+    
+    if st.button("🎯 Generate Best Match Resume", type="primary"):
+        with st.spinner("AI is selecting the optimal content mix..."):
+            try:
+                # Use the original matcher but with enhanced content pool
+                matcher = JobMatcher()
+                
+                # Create a temporary resume data structure with approved enhanced content
+                enhanced_resume_data = _create_enhanced_resume_data_structure()
+                
+                # Generate matched content
+                selected_content = matcher.match_resume_to_job(
+                    enhanced_resume_data,
+                    st.session_state.target_job_description
+                )
+                
+                st.session_state.selected_content = selected_content
+                
+                # Generate markdown
+                final_markdown = matcher.generate_markdown(selected_content)
+                st.session_state.final_markdown = final_markdown
+                
+                st.success("✅ Best match resume generated!")
+                
+                # Show results
+                with st.expander("🎯 AI Selected Content", expanded=True):
+                    # Display selected content
+                    if selected_content.get('summary'):
+                        st.write("**Selected Summary Sentences:**")
+                        for sentence in selected_content['summary'].get('selected_sentences', []):
+                            st.write(f"• {sentence}")
+                    
+                    if selected_content.get('experience'):
+                        st.write("**Selected Experience:**")
+                        for exp in selected_content['experience']:
+                            st.write(f"**{exp.get('position')} at {exp.get('company')}**")
+                            if exp.get('selected_accomplishments'):
+                                for acc in exp['selected_accomplishments'][:3]:  # Show first 3
+                                    st.write(f"  • {acc}")
+                    
+                    if selected_content.get('projects'):
+                        st.write("**Selected Projects:**")
+                        for proj in selected_content['projects']:
+                            st.write(f"**{proj.get('name')}**")
+                            if proj.get('selected_descriptions'):
+                                for desc in proj['selected_descriptions'][:2]:  # Show first 2
+                                    st.write(f"  • {desc}")
+                
+                # Reset workflow for next use
+                if st.button("🔄 Start New Matching Process"):
+                    st.session_state.workflow_step = 1
+                    st.session_state.enhanced_content = None
+                    st.session_state.approved_content = None
+                    st.rerun()
+                
+            except Exception as e:
+                st.error(f"Content selection failed: {str(e)}")
+    
+    # Navigation
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("← Back to Step 2"):
+            st.session_state.workflow_step = 2
+            st.rerun()
+    
+    with col2:
+        st.info("👉 Go to 'Edit Resume Sections' to make final adjustments")
+
+def _create_enhanced_resume_data_structure():
+    """Create resume data structure from approved enhanced content"""
+    
+    original_data = st.session_state.resume_data.copy()
+    approved = st.session_state.approved_content
+    
+    # Replace with approved enhanced content
+    if approved.get('summary_sentences'):
+        original_data['summary'] = {'sentences': approved['summary_sentences']}
+    
+    if approved.get('experience'):
+        for exp_idx, approved_exp in approved['experience'].items():
+            if exp_idx < len(original_data.get('experience', [])):
+                if approved_exp.get('role_summaries'):
+                    original_data['experience'][exp_idx]['role_summaries'] = approved_exp['role_summaries']
+                if approved_exp.get('accomplishments'):
+                    original_data['experience'][exp_idx]['accomplishments'] = approved_exp['accomplishments']
+    
+    if approved.get('projects'):
+        for proj_idx, approved_proj in approved['projects'].items():
+            if proj_idx < len(original_data.get('projects', [])):
+                if approved_proj.get('descriptions'):
+                    original_data['projects'][proj_idx]['descriptions'] = approved_proj['descriptions']
+    
+    return original_data
 
 if __name__ == "__main__":
     main()
