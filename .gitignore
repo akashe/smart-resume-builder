@@ -92,3 +92,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# RenderCV generated files (not needed for our 
+
+classic/
+markdown/
+rendercv_output/
+*_CV.yaml
+*.yaml
+temp_*/
+test_folder/

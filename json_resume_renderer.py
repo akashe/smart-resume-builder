@@ -10,15 +10,8 @@ class JSONResumeRenderer:
     """Render JSON Resume using various themes via resume-cli"""
     
     AVAILABLE_THEMES = [
-        'professional',
         'elegant',
-        'stackoverflow',
-        'kendall',
-        'flat',
-        'paper',
-        'bootstrap',
-        'onepage',
-        'class'
+        'kendall'
     ]
     
     def __init__(self):
@@ -159,20 +152,21 @@ class JSONResumeRenderer:
             raise RuntimeError(f"Error rendering resume: {str(e)}")
     
     def _install_theme(self, theme: str) -> None:
-        """Install theme locally in temp directory"""
+        """Install theme locally in temp directory with force flag"""
         try:
-            # Install theme locally in the working directory
-            install_cmd = ['npm', 'install', f'jsonresume-theme-{theme}', '--no-save']
+            # Install theme locally with force to handle dependency conflicts
+            install_cmd = ['npm', 'install', f'jsonresume-theme-{theme}', '--force', '--no-save']
             install_result = subprocess.run(
                 install_cmd, 
                 capture_output=True, 
                 text=True,
-                timeout=60,
+                timeout=120,  # Increased timeout
                 cwd=self.temp_dir
             )
             
             if install_result.returncode != 0:
-                print(f"Warning: Could not install theme {theme} locally: {install_result.stderr}")
+                print(f"Warning: Could not install theme {theme} locally")
+                # Don't print full error to avoid spam
                     
         except (subprocess.TimeoutExpired, Exception) as e:
             print(f"Warning: Theme installation failed: {e}")

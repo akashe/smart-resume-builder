@@ -8,10 +8,8 @@ load_dotenv()
 # Page imports
 from parser import ResumeParser
 from matcher import JobMatcher
-from exporter import PDFExporter
 from theme_exporter import ThemeExporter
 import sqlite3
-import json
 
 # Initialize session state
 if 'resume_data' not in st.session_state:
@@ -364,7 +362,7 @@ def job_matching_page():
     st.session_state.job_description = job_description
     
     # Always show the button, make it more prominent
-    col1, col2, col3 = st.columns([1, 2, 1])
+    _, col2, _ = st.columns([1, 2, 1])
     with col2:
         generate_button = st.button(
             "🤖 Generate Matched Resume", 
@@ -618,15 +616,14 @@ def export_pdf_page():
                     try:
                         resume_data = st.session_state.selected_content or st.session_state.resume_data
                         
-                        # Generate a few popular themes
-                        popular_themes = [
-                            ('json_resume', 'professional'),
+                        # Generate all available themes
+                        available_themes = [
                             ('json_resume', 'elegant'),
-                            ('json_resume', 'stackoverflow'),
-                            ('reportlab', 'professional')
+                            ('json_resume', 'kendall'),
+                            ('typst', 'modern-cv')
                         ]
                         
-                        for engine, theme in popular_themes:
+                        for engine, theme in available_themes:
                             try:
                                 pdf_bytes = theme_exporter.export_resume(
                                     resume_data, engine, theme, 'pdf'
@@ -660,30 +657,8 @@ def export_pdf_page():
         st.error(f"Theme system error: {str(e)}")
         st.info("Falling back to basic export...")
         
-        # Fallback to original export
-        if st.session_state.final_markdown:
-            if st.button("📄 Generate Basic PDF", type="primary"):
-                with st.spinner("Generating PDF..."):
-                    try:
-                        exporter = PDFExporter()
-                        pdf_bytes = exporter.markdown_to_pdf(
-                            st.session_state.final_markdown,
-                            filename="resume.pdf"
-                        )
-                        
-                        st.download_button(
-                            label="⬇️ Download PDF",
-                            data=pdf_bytes,
-                            file_name="resume.pdf",
-                            mime="application/pdf"
-                        )
-                        
-                        st.success("✅ PDF generated successfully!")
-                        
-                    except Exception as e:
-                        st.error(f"Error generating PDF: {str(e)}")
-        else:
-            st.warning("Please complete markdown editing first!")
+        # Fallback message
+        st.warning("Theme system is temporarily unavailable. Please check your resume data and try again.")
 
 if __name__ == "__main__":
     main()

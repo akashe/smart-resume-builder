@@ -5,39 +5,47 @@ import os
 
 from json_resume_transformer import JSONResumeTransformer
 from json_resume_renderer import JSONResumeRenderer
-from exporter import PDFExporter
+from typst_renderer import TypstRenderer
+from rendercv_renderer import RenderCVRenderer
 
 class ThemeType(Enum):
     JSON_RESUME = "json_resume"
-    REPORTLAB = "reportlab"
-    TYPST = "typst"  # For future implementation
+    TYPST = "typst"
+    RENDERCV = "rendercv"
 
 class ThemeExporter:
-    """Unified exporter supporting multiple resume theme engines"""
+    """Unified exporter supporting JSON Resume and Typst themes"""
     
     AVAILABLE_THEMES = {
-        # Current ReportLab implementation (working)
-        ThemeType.REPORTLAB: {
-            'professional': 'Professional - Clean corporate style with elegant typography',
-            'modern': 'Modern - Contemporary design (coming soon)',
-            'minimal': 'Minimal - Clean and simple layout (coming soon)'
-        },
-        # JSON Resume themes (experimental - may have dependency issues)
+        # JSON Resume themes (focus on working ones)
         ThemeType.JSON_RESUME: {
-            'professional': 'JSON Resume Professional - External theme (experimental)',
-            'elegant': 'JSON Resume Elegant - External theme (experimental)'
+            'elegant': 'Elegant - Professional and clean design',
+            'kendall': 'Kendall - Modern minimalist style'
+        },
+        # Typst templates (working, high-quality themes)
+        ThemeType.TYPST: {
+            'modern-cv': 'Modern CV - Professional typography with elegant layout',
+            'basic-resume': 'Basic Resume - Clean, ATS-friendly design'
+        },
+        # RenderCV themes (professional Typst-based templates)
+        ThemeType.RENDERCV: {
+            'classic': 'Classic - Traditional professional resume format',
+            'engineeringresumes': 'Engineering Resumes - Optimized for technical roles', 
+            'sb2nov': 'SB2Nov - Modern academic CV style',
+            'moderncv': 'Modern CV - Contemporary professional design',
+            'engineeringclassic': 'Engineering Classic - Clean technical resume format'
         }
     }
     
     def __init__(self):
         self.json_transformer = JSONResumeTransformer()
-        self.reportlab_exporter = PDFExporter()
     
     def get_available_themes(self) -> Dict[str, Dict[str, str]]:
         """Get all available themes organized by engine type"""
         return {
             'JSON Resume': self.AVAILABLE_THEMES[ThemeType.JSON_RESUME],
-            'ReportLab': self.AVAILABLE_THEMES[ThemeType.REPORTLAB]
+            'Typst': self.AVAILABLE_THEMES[ThemeType.TYPST],
+            'RenderCV': self.AVAILABLE_THEMES[ThemeType.RENDERCV]
         }
     
     def get_theme_list(self) -> List[Tuple[str, str, str]]:
@@ -61,7 +69,7 @@ class ThemeExporter:
         
         Args:
             resume_data: Internal resume data structure
-            theme_engine: 'json_resume' or 'reportlab'
+            theme_engine: 'json_resume' or 'typst'
             theme_name: Name of the theme
             output_format: 'pdf' or 'html' (html only for JSON Resume)
             
@@ -73,8 +81,10 @@ class ThemeExporter:
         
         if engine_type == ThemeType.JSON_RESUME:
             return self._export_json_resume(resume_data, theme_name, output_format)
-        elif engine_type == ThemeType.REPORTLAB:
-            return self._export_reportlab(resume_data, theme_name, output_format)
+        elif engine_type == ThemeType.TYPST:
+            return self._export_typst(resume_data, theme_name, output_format)
+        elif engine_type == ThemeType.RENDERCV:
+            return self._export_rendercv(resume_data, theme_name, output_format)
         else:
             raise ValueError(f"Unsupported theme engine: {theme_engine}")
     
@@ -82,158 +92,46 @@ class ThemeExporter:
                            resume_data: Dict[str, Any],
                            theme_name: str,
                            output_format: str) -> bytes:
-        """Export using JSON Resume engine (experimental)"""
+        """Export using JSON Resume engine"""
         
-        try:
-            # Transform data to JSON Resume format
-            json_resume_data = self.json_transformer.transform_to_json_resume(resume_data)
-            
-            # Render using JSON Resume
-            with JSONResumeRenderer() as renderer:
-                if output_format.lower() == 'pdf':
-                    return renderer.render_to_pdf(json_resume_data, theme_name)
-                elif output_format.lower() == 'html':
-                    html_content = renderer.render_to_html(json_resume_data, theme_name)
-                    return html_content.encode('utf-8')
-                else:
-                    raise ValueError(f"Unsupported output format for JSON Resume: {output_format}")
+        # Transform data to JSON Resume format
+        json_resume_data = self.json_transformer.transform_to_json_resume(resume_data)
         
-        except Exception as e:
-            # Fallback to ReportLab if JSON Resume fails
-            print(f"JSON Resume failed ({e}), falling back to ReportLab")
-            return self._export_reportlab(resume_data, 'professional', 'pdf')
+        # Render using JSON Resume
+        with JSONResumeRenderer() as renderer:
+            if output_format.lower() == 'pdf':
+                return renderer.render_to_pdf(json_resume_data, theme_name)
+            elif output_format.lower() == 'html':
+                html_content = renderer.render_to_html(json_resume_data, theme_name)
+                return html_content.encode('utf-8')
+            else:
+                raise ValueError(f"Unsupported output format for JSON Resume: {output_format}")
     
-    def _export_reportlab(self, 
+    def _export_typst(self, 
+                      resume_data: Dict[str, Any],
+                      theme_name: str,
+                      output_format: str) -> bytes:
+        """Export using Typst engine"""
+        
+        if output_format.lower() != 'pdf':
+            raise ValueError("Typst only supports PDF output")
+        
+        # Render using Typst
+        with TypstRenderer() as renderer:
+            return renderer.render_resume(resume_data, theme_name)
+    
+    def _export_rendercv(self, 
                          resume_data: Dict[str, Any],
                          theme_name: str,
                          output_format: str) -> bytes:
-        """Export using ReportLab engine"""
+        """Export using RenderCV engine"""
         
         if output_format.lower() != 'pdf':
-            raise ValueError("ReportLab only supports PDF output")
+            raise ValueError("RenderCV only supports PDF output")
         
-        # Handle different ReportLab theme variations
-        if theme_name in ['modern', 'minimal']:
-            # For future theme implementations, fall back to professional for now
-            theme_name = 'professional'
-        
-        # Generate markdown from resume data (using existing logic from app.py)
-        markdown_content = self._generate_markdown_from_data(resume_data)
-        
-        # Export using ReportLab
-        return self.reportlab_exporter.markdown_to_pdf(markdown_content)
-    
-    def _generate_markdown_from_data(self, resume_data: Dict[str, Any]) -> str:
-        """Generate markdown content from resume data for ReportLab"""
-        # This replicates the markdown generation logic
-        # You could extract this from matcher.py or create a separate utility
-        
-        markdown_parts = []
-        
-        # Contact info
-        contact = resume_data.get('contact', {})
-        if contact.get('name'):
-            markdown_parts.append(f"# {contact['name']}")
-        
-        # Contact details
-        contact_line = []
-        if contact.get('email'):
-            contact_line.append(contact['email'])
-        if contact.get('phone'):
-            contact_line.append(contact['phone'])
-        if contact.get('linkedin'):
-            contact_line.append(contact['linkedin'])
-        
-        if contact_line:
-            markdown_parts.append(' | '.join(contact_line))
-        
-        # Summary
-        summary_data = resume_data.get('summary', {})
-        if 'selected_sentences' in summary_data:
-            sentences = summary_data['selected_sentences']
-        else:
-            sentences = summary_data.get('sentences', [])
-        
-        if sentences:
-            markdown_parts.append("\n## Summary")
-            markdown_parts.append(' '.join(sentences))
-        
-        # Experience
-        experiences = resume_data.get('experience', [])
-        if experiences:
-            markdown_parts.append("\n## Experience")
-            for exp in experiences:
-                position = exp.get('position', '')
-                company = exp.get('company', '')
-                duration = exp.get('duration', '')
-                
-                if position and company:
-                    markdown_parts.append(f"\n### {position} - {company}")
-                    if duration:
-                        markdown_parts.append(f"**{duration}**")
-                
-                # Role summary
-                if 'selected_role_summary' in exp:
-                    markdown_parts.append(exp['selected_role_summary'])
-                elif exp.get('role_summaries'):
-                    markdown_parts.append(exp['role_summaries'][0])
-                
-                # Accomplishments
-                if 'selected_accomplishments' in exp:
-                    accomplishments = exp['selected_accomplishments']
-                elif exp.get('accomplishments'):
-                    accomplishments = exp['accomplishments']
-                else:
-                    accomplishments = []
-                
-                for acc in accomplishments:
-                    markdown_parts.append(f"• {acc}")
-        
-        # Projects
-        projects = resume_data.get('projects', [])
-        if projects:
-            markdown_parts.append("\n## Projects")
-            for proj in projects:
-                name = proj.get('name', '')
-                if name:
-                    markdown_parts.append(f"\n### {name}")
-                
-                # Description
-                if 'selected_description' in proj:
-                    markdown_parts.append(proj['selected_description'])
-                elif proj.get('descriptions'):
-                    markdown_parts.append(proj['descriptions'][0])
-                
-                # Technologies
-                if proj.get('technologies'):
-                    tech_str = ', '.join(proj['technologies'])
-                    markdown_parts.append(f"**Technologies:** {tech_str}")
-        
-        # Skills
-        skills_data = resume_data.get('skills', {})
-        if skills_data:
-            markdown_parts.append("\n## Skills")
-            for category, skill_list in skills_data.items():
-                if skill_list:
-                    category_name = category.replace('_', ' ').title()
-                    skills_str = ', '.join(skill_list)
-                    markdown_parts.append(f"**{category_name}:** {skills_str}")
-        
-        # Education
-        education = resume_data.get('education', [])
-        if education:
-            markdown_parts.append("\n## Education")
-            for edu in education:
-                degree = edu.get('degree', '')
-                institution = edu.get('institution', '')
-                graduation = edu.get('graduation', '')
-                
-                if degree and institution:
-                    markdown_parts.append(f"\n### {degree} - {institution}")
-                    if graduation:
-                        markdown_parts.append(f"**{graduation}**")
-        
-        return '\n\n'.join(markdown_parts)
+        # Render using RenderCV
+        with RenderCVRenderer() as renderer:
+            return renderer.render_resume(resume_data, theme_name)
     
     def preview_theme(self, 
                       resume_data: Dict[str, Any],

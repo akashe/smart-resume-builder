@@ -43,11 +43,11 @@ class JSONResumeTransformer:
             "url": "",
             "summary": self._get_summary_text(resume_data),
             "location": {
-                "address": "",
-                "postalCode": "",
-                "city": "",
-                "countryCode": "",
-                "region": ""
+                "address": contact.get('address', ''),
+                "postalCode": contact.get('postal_code', ''),
+                "city": contact.get('city', ''),
+                "countryCode": contact.get('country_code', 'US'),
+                "region": contact.get('region', '')
             },
             "profiles": []
         }
