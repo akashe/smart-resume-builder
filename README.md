@@ -1,81 +1,89 @@
 # Resume Matcher MVP
 
-A Streamlit-based tool that intelligently matches your resume content to job descriptions using AI.
+An end-to-end AI-powered resume optimization platform that **automatically parses your resume, enhances content based on specific job descriptions and target companies, then directly exports professional PDFs** - eliminating manual formatting work. Unlike other tools that only provide enhanced text content, this application delivers a complete workflow from upload to final PDF, saving hours of manual editing and formatting.
 
-## Features
 
-- 📤 **Resume Upload**: Parse PDF and DOCX resumes
-- ✏️ **Content Management**: Add multiple variations of bullet points
-- 🎯 **AI Job Matching**: Automatically select best content for each job
-- 📝 **Markdown Editor**: Edit the generated resume
-- 📄 **PDF Export**: Generate ATS-friendly PDFs
+## 🚦 Quick Setup
 
-## Quick Setup (2 minutes)
+1. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd resume-matcher-mvp
+   ```
 
-1. **Clone/Download** this folder
 2. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
-3. **Set up OpenAI API**:
-   - Copy `.env.sample` to `.env`
-   - Add your OpenAI API key
-4. **Run the app**:
+
+3. **Configure environment**:
+   ```bash
+   cp .env.sample .env
+   # Add your OpenAI API key to .env
+   ```
+
+4. **Run the application**:
    ```bash
    streamlit run app.py
    ```
 
-## Usage Flow
+## 📋 Usage Workflow
 
-1. **Upload Resume** → Parse your existing resume
-2. **Edit Sections** → Add multiple bullet point variations  
-3. **Job Matching** → Paste job description, let AI select best content
-4. **Edit Markdown** → Fine-tune the generated resume
-5. **Export PDF** → Download ATS-friendly PDF
+### **Step 1: Resume Upload & Parsing**
+- Upload PDF/DOCX resume files
+- Automatic content extraction and structuring
+- Validation and error handling
 
-## Key Benefits
+### **Step 2: Edit & Add Information**
+- Review and edit all parsed sections
+- Add multiple variations of accomplishments
+- Manage contact information and skills
 
-- **Multiple Variations**: Store different ways to describe the same achievement
-- **AI Selection**: Automatically picks the best content for each job
-- **ATS-Friendly**: Professional formatting that passes applicant tracking systems
-- **Quick Iterations**: Easily create customized resumes for different positions
+### **Step 3: AI Enhancement** 
+- **Enhance**: AI generates improved content variations
+- **Review**: Select which suggestions to approve
+- **Apply**: Chosen enhancements are integrated
+- Global verb tracking ensures diverse language
 
-## Technical Stack
+### **Step 4: Job Matching & Analysis**
+- Paste target job description
+- AI analyzes company culture and requirements
+- Intelligent content selection for optimal fit
+- Positioning recommendations provided
 
-- **Frontend**: Streamlit
-- **AI**: OpenAI GPT-3.5-turbo
-- **Parsing**: python-docx, PyPDF2
-- **PDF Generation**: WeasyPrint
-- **Storage**: SQLite
+### **Step 5: Final Review & Export**
+- Markdown editor for final content refinement
+- Choose export format and theme
+- Generate professional PDF output
 
-## File Structure
 
+## ⚙️ Advanced Features
+
+### **Company Intelligence**
+- Startup vs Enterprise vs Big Tech detection
+- Cultural values analysis and scoring
+- Hidden hiring preferences identification
+- Industry-specific positioning advice
+
+### **AI Content Enhancement**
+- Context-aware content generation
+- Impact-focused accomplishment writing
+- Technical skill positioning
+- Global language diversity tracking
+
+### **Auto generate PDF for the enhanced resume**
+- Professional PDF template generation using RenderCV
+- Advanced typesetting with Typst
+- Theme-based styling system
+
+## 🔧 Configuration Options
+
+### **Environment Variables**
+```bash
+OPENAI_API_KEY=your_api_key_here
+OPENAI_MODEL=gpt-3.5-turbo  # or gpt-4
 ```
-resume-matcher-mvp/
-├── app.py              # Main Streamlit application
-├── parser.py           # Resume parsing logic
-├── matcher.py          # AI job matching system
-├── exporter.py         # PDF generation
-├── requirements.txt    # Dependencies
-└── README.md          # This file
-```
-
-## Troubleshooting
-
-**PDF Generation Issues**: If WeasyPrint fails, install system dependencies:
-- **Mac**: `brew install cairo pango gdk-pixbuf libffi`
-- **Ubuntu**: `apt-get install libcairo2-dev libpango1.0-dev libgdk-pixbuf2.0-dev libffi-dev`
-
-**OpenAI API Errors**: Ensure your API key is valid and has sufficient credits.
-
-## Future Enhancements
-
-- Multiple resume templates
-- Batch job application processing
-- LinkedIn integration
-- Resume scoring and feedback
-- Cover letter generation
 
 ---
 
-**Built in 2 days** for rapid resume customization! 🚀
+**Built for modern job seekers** who need intelligent, data-driven resume optimization! 🎯
