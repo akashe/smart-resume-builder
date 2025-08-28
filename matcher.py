@@ -7,6 +7,7 @@ import re
 class JobMatcher:
     def __init__(self):
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
     
     def match_resume_to_job(self, resume_data: Dict[str, Any], job_description: str) -> Dict[str, Any]:
         """Use AI to select the best resume content for a specific job from structured data"""
@@ -75,7 +76,7 @@ class JobMatcher:
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 max_tokens=500
@@ -172,7 +173,7 @@ class JobMatcher:
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 max_tokens=100
@@ -212,6 +213,10 @@ class JobMatcher:
             if contact.get('name'):
                 markdown += f"# {contact['name']}\n\n"
             
+            # Add title/designation if available
+            if contact.get('title'):
+                markdown += f"**{contact['title']}**\n\n"
+            
             contact_info = []
             if contact.get('email'):
                 contact_info.append(contact['email'])
@@ -221,6 +226,10 @@ class JobMatcher:
                 contact_info.append(contact['location'])
             if contact.get('linkedin'):
                 contact_info.append(contact['linkedin'])
+            if contact.get('github'):
+                contact_info.append(contact['github'])
+            if contact.get('website'):
+                contact_info.append(contact['website'])
             
             if contact_info:
                 markdown += " | ".join(contact_info) + "\n\n"
@@ -346,7 +355,7 @@ class JobMatcher:
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=100
@@ -384,7 +393,7 @@ class JobMatcher:
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 max_tokens=50
@@ -498,7 +507,7 @@ class JobMatcher:
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 max_tokens=10
@@ -535,7 +544,7 @@ class JobMatcher:
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 max_tokens=50

@@ -107,12 +107,16 @@ def upload_resume_page():
                     
                     # Contact info
                     if resume_data.get('contact', {}).get('name'):
-                        with st.expander("👤 Contact Information"):
+                        with st.expander("👤 Contact Information (Editable in Edit Sections)"):
                             contact = resume_data['contact']
                             if contact['name']: st.write(f"**Name:** {contact['name']}")
+                            if contact.get('title'): st.write(f"**Title:** {contact['title']}")
                             if contact['email']: st.write(f"**Email:** {contact['email']}")
                             if contact['phone']: st.write(f"**Phone:** {contact['phone']}")
+                            if contact.get('location'): st.write(f"**Location:** {contact['location']}")
                             if contact['linkedin']: st.write(f"**LinkedIn:** {contact['linkedin']}")
+                            if contact.get('github'): st.write(f"**GitHub:** {contact['github']}")
+                            if contact.get('website'): st.write(f"**Website:** {contact['website']}")
                     
                     # Summary sentences
                     if resume_data.get('summary', {}).get('sentences'):
@@ -169,7 +173,37 @@ def edit_sections_page():
     st.markdown("*Add multiple variations so AI can select the best match for each job*")
     
     # Section tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Summary", "💼 Experience", "🚀 Projects", "🛠️ Skills", "🎓 Education"])
+    tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["👤 Contact", "📝 Summary", "💼 Experience", "🚀 Projects", "🛠️ Skills", "🎓 Education"])
+    
+    with tab0:
+        st.subheader("Contact Information")
+        st.markdown("*Edit your contact details and professional title*")
+        
+        if 'contact' not in resume_data:
+            resume_data['contact'] = {
+                'name': '', 'email': '', 'phone': '', 'location': '', 
+                'linkedin': '', 'github': '', 'website': '', 'title': ''
+            }
+        
+        contact = resume_data['contact']
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            contact['name'] = st.text_input("Full Name:", value=contact.get('name', ''), key="contact_name")
+            contact['title'] = st.text_input("Professional Title/Designation:", value=contact.get('title', ''), 
+                                           placeholder="e.g., AI & NLP Expert, Senior Software Engineer", key="contact_title")
+            contact['email'] = st.text_input("Email:", value=contact.get('email', ''), key="contact_email")
+            contact['phone'] = st.text_input("Phone:", value=contact.get('phone', ''), key="contact_phone")
+        
+        with col2:
+            contact['location'] = st.text_input("Location:", value=contact.get('location', ''), 
+                                              placeholder="City, State", key="contact_location")
+            contact['linkedin'] = st.text_input("LinkedIn URL:", value=contact.get('linkedin', ''), 
+                                              placeholder="https://linkedin.com/in/username", key="contact_linkedin")
+            contact['github'] = st.text_input("GitHub URL:", value=contact.get('github', ''), 
+                                            placeholder="https://github.com/username", key="contact_github")
+            contact['website'] = st.text_input("Personal Website:", value=contact.get('website', ''), 
+                                             placeholder="https://yourwebsite.com", key="contact_website")
     
     with tab1:
         st.subheader("Summary Sentences")
@@ -395,10 +429,20 @@ def job_matching_page():
                     with st.expander("👤 Contact"):
                         if contact.get('name'):
                             st.write(f"**Name:** {contact['name']}")
+                        if contact.get('title'):
+                            st.write(f"**Title:** {contact['title']}")
                         if contact.get('email'):
                             st.write(f"**Email:** {contact['email']}")
                         if contact.get('phone'):
                             st.write(f"**Phone:** {contact['phone']}")
+                        if contact.get('location'):
+                            st.write(f"**Location:** {contact['location']}")
+                        if contact.get('linkedin'):
+                            st.write(f"**LinkedIn:** {contact['linkedin']}")
+                        if contact.get('github'):
+                            st.write(f"**GitHub:** {contact['github']}")
+                        if contact.get('website'):
+                            st.write(f"**Website:** {contact['website']}")
                 
                 # Summary
                 if 'summary' in selected_content:

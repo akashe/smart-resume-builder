@@ -9,6 +9,7 @@ import os
 class ResumeParser:
     def __init__(self):
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
         
         self.section_keywords = {
             'experience': [
@@ -106,7 +107,8 @@ class ResumeParser:
                     "location": "City, State",
                     "linkedin": "linkedin url",
                     "github": "github url",
-                    "website": "personal website"
+                    "website": "personal website",
+                    "title": "Professional Title/Designation (e.g., 'AI & NLP Expert', 'Senior Software Engineer')"
                 }},
                 "summary": {{
                     "sentences": [
@@ -182,7 +184,7 @@ class ResumeParser:
             """
             
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 max_tokens=2000
@@ -212,12 +214,13 @@ class ResumeParser:
                 'location': str(ai_parsed['contact'].get('location', '')).strip(),
                 'linkedin': str(ai_parsed['contact'].get('linkedin', '')).strip(),
                 'github': str(ai_parsed['contact'].get('github', '')).strip(),
-                'website': str(ai_parsed['contact'].get('website', '')).strip()
+                'website': str(ai_parsed['contact'].get('website', '')).strip(),
+                'title': str(ai_parsed['contact'].get('title', '')).strip()
             }
         else:
             validated_data['contact'] = {
                 'name': '', 'email': '', 'phone': '', 'location': '', 
-                'linkedin': '', 'github': '', 'website': ''
+                'linkedin': '', 'github': '', 'website': '', 'title': ''
             }
         
         # Summary - array of sentences

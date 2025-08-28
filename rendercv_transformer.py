@@ -20,6 +20,7 @@ class RenderCVTransformer:
         # Build CV structure
         cv_data = {
             'name': contact.get('name', 'Your Name'),
+            'title': contact.get('title', ''),
             'location': contact.get('city', '') or contact.get('location', '') or 'Location',
             'email': contact.get('email', 'email@example.com'),
             'phone': self._format_phone(contact.get('phone', '')),

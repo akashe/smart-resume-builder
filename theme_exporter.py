@@ -3,13 +3,10 @@ from enum import Enum
 import tempfile
 import os
 
-from json_resume_transformer import JSONResumeTransformer
-from json_resume_renderer import JSONResumeRenderer
 from typst_renderer import TypstRenderer
 from rendercv_renderer import RenderCVRenderer
 
 class ThemeType(Enum):
-    JSON_RESUME = "json_resume"
     TYPST = "typst"
     RENDERCV = "rendercv"
 
@@ -17,11 +14,6 @@ class ThemeExporter:
     """Unified exporter supporting JSON Resume and Typst themes"""
     
     AVAILABLE_THEMES = {
-        # JSON Resume themes (focus on working ones)
-        ThemeType.JSON_RESUME: {
-            'elegant': 'Elegant - Professional and clean design',
-            'kendall': 'Kendall - Modern minimalist style'
-        },
         # Typst templates (working, high-quality themes)
         ThemeType.TYPST: {
             'modern-cv': 'Modern CV - Professional typography with elegant layout',
@@ -38,12 +30,11 @@ class ThemeExporter:
     }
     
     def __init__(self):
-        self.json_transformer = JSONResumeTransformer()
+        pass
     
     def get_available_themes(self) -> Dict[str, Dict[str, str]]:
         """Get all available themes organized by engine type"""
         return {
-            'JSON Resume': self.AVAILABLE_THEMES[ThemeType.JSON_RESUME],
             'Typst': self.AVAILABLE_THEMES[ThemeType.TYPST],
             'RenderCV': self.AVAILABLE_THEMES[ThemeType.RENDERCV]
         }
@@ -79,33 +70,13 @@ class ThemeExporter:
         
         engine_type = ThemeType(theme_engine.lower())
         
-        if engine_type == ThemeType.JSON_RESUME:
-            return self._export_json_resume(resume_data, theme_name, output_format)
-        elif engine_type == ThemeType.TYPST:
+
+        if engine_type == ThemeType.TYPST:
             return self._export_typst(resume_data, theme_name, output_format)
         elif engine_type == ThemeType.RENDERCV:
             return self._export_rendercv(resume_data, theme_name, output_format)
         else:
             raise ValueError(f"Unsupported theme engine: {theme_engine}")
-    
-    def _export_json_resume(self, 
-                           resume_data: Dict[str, Any],
-                           theme_name: str,
-                           output_format: str) -> bytes:
-        """Export using JSON Resume engine"""
-        
-        # Transform data to JSON Resume format
-        json_resume_data = self.json_transformer.transform_to_json_resume(resume_data)
-        
-        # Render using JSON Resume
-        with JSONResumeRenderer() as renderer:
-            if output_format.lower() == 'pdf':
-                return renderer.render_to_pdf(json_resume_data, theme_name)
-            elif output_format.lower() == 'html':
-                html_content = renderer.render_to_html(json_resume_data, theme_name)
-                return html_content.encode('utf-8')
-            else:
-                raise ValueError(f"Unsupported output format for JSON Resume: {output_format}")
     
     def _export_typst(self, 
                       resume_data: Dict[str, Any],
