@@ -59,7 +59,6 @@ class RenderCVRenderer:
             # Save YAML file
             # pdb.set_trace()
             yaml_file_path = os.path.join("test_folder", 'resume.yaml')
-            print(yaml_file_path)
             with open(yaml_file_path, 'w', encoding='utf-8') as f:
                 yaml.dump(rendercv_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
             

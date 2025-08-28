@@ -893,15 +893,17 @@ def _render_contact_section():
             name = st.text_input("Name:", value=contact.get('name', ''), key="md_name")
             title = st.text_input("Title:", value=contact.get('title', ''), key="md_title")
             email = st.text_input("Email:", value=contact.get('email', ''), key="md_email")
-        with col2:
             phone = st.text_input("Phone:", value=contact.get('phone', ''), key="md_phone")
+        with col2:
             location = st.text_input("Location:", value=contact.get('location', ''), key="md_location")
             linkedin = st.text_input("LinkedIn:", value=contact.get('linkedin', ''), key="md_linkedin")
+            github = st.text_input("GitHub:", value=contact.get('github', ''), key="md_github")
+            website = st.text_input("Website:", value=contact.get('website', ''), key="md_website")
         
-        # Update contact in resume data
+        # Update contact in resume data with ALL fields
         st.session_state.resume_data['contact'] = {
             'name': name, 'title': title, 'email': email, 'phone': phone, 
-            'location': location, 'linkedin': linkedin
+            'location': location, 'linkedin': linkedin, 'github': github, 'website': website
         }
 
 def _render_summary_section():
@@ -1116,43 +1118,88 @@ def _render_step1_enhance_content():
     
     if company_name.strip() and job_description.strip():
         if st.button("🚀 Enhance All Content", type="primary"):
-            with st.spinner("AI is enhancing all your resume content..."):
-                try:
-                    # Store job info for later steps
-                    st.session_state.target_company = company_name
-                    st.session_state.target_job_description = job_description
+            # Create progress tracking containers
+            progress_container = st.container()
+            progress_bar = progress_container.progress(0)
+            status_text = progress_container.empty()
+            logs_container = progress_container.empty()
+            
+            try:
+                logs = []
+                
+                # Store job info for later steps
+                st.session_state.target_company = company_name
+                st.session_state.target_job_description = job_description
+                
+                status_text.text("🏢 Analyzing company DNA...")
+                progress_bar.progress(10)
+                logs.append("🏢 Starting company analysis...")
+                
+                # Enhance all content using positioning coach
+                positioning_coach = PositioningCoach()
+                
+                # Get company analysis
+                company_analysis = positioning_coach.company_analyzer.analyze_company_dna(job_description, company_name)
+                logs.append(f"✅ Company analysis complete: {company_analysis.get('company_type', 'Unknown')} company")
+                
+                progress_bar.progress(20)
+                status_text.text("🔧 Starting content enhancement...")
+                
+                # Count total items to enhance for accurate progress
+                resume_data = st.session_state.resume_data
+                total_items = 0
+                total_items += len(resume_data.get('summary', {}).get('sentences', []))
+                for exp in resume_data.get('experience', []):
+                    total_items += len(exp.get('role_summaries', []))
+                    total_items += len(exp.get('accomplishments', []))
+                for proj in resume_data.get('projects', []):
+                    total_items += len(proj.get('descriptions', []))
+                
+                logs.append(f"📊 Total items to enhance: {total_items}")
+                
+                # Update logs display
+                with logs_container.container():
+                    for log in logs:
+                        st.text(log)
+                
+                # Generate enhanced versions of all content
+                enhanced_content = _generate_enhanced_content_for_all_sections(
+                    st.session_state.resume_data, 
+                    job_description, 
+                    company_analysis,
+                    progress_bar,
+                    status_text,
+                    logs_container,
+                    total_items
+                )
+                
+                # Store enhanced content
+                st.session_state.enhanced_content = enhanced_content
+                st.session_state.company_analysis = company_analysis
+                
+                # Move to next step
+                st.session_state.workflow_step = 2
+                
+                progress_bar.progress(100)
+                status_text.text("✅ AI enhancement complete!")
+                st.success("✅ All content enhanced! Moving to review step...")
+                st.rerun()
                     
-                    # Enhance all content using positioning coach
-                    positioning_coach = PositioningCoach()
-                    
-                    # Get company analysis
-                    company_analysis = positioning_coach.company_analyzer.analyze_company_dna(job_description, company_name)
-                    
-                    # Generate enhanced versions of all content
-                    enhanced_content = _generate_enhanced_content_for_all_sections(
-                        st.session_state.resume_data, 
-                        job_description, 
-                        company_analysis
-                    )
-                    
-                    # Store enhanced content
-                    st.session_state.enhanced_content = enhanced_content
-                    st.session_state.company_analysis = company_analysis
-                    
-                    # Move to next step
-                    st.session_state.workflow_step = 2
-                    st.success("✅ All content enhanced! Moving to review step...")
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"Enhancement failed: {str(e)}")
-                    st.info("You can continue with original content")
+            except Exception as e:
+                st.error(f"Enhancement failed: {str(e)}")
+                st.info("You can continue with original content")
     
     else:
         st.info("👆 Enter company name and job description to start AI enhancement")
 
-def _generate_enhanced_content_for_all_sections(resume_data, job_description, company_analysis):
-    """Generate enhanced versions of all resume sections"""
+def _generate_enhanced_content_for_all_sections(resume_data, job_description, company_analysis, 
+                                               progress_bar=None, status_text=None, logs_container=None, total_items=0):
+    """Generate enhanced versions of all resume sections with global verb tracking and logging"""
+    
+    # Global verb tracking across all content
+    used_verbs = set()
+    logs = []
+    current_item = 0
     
     enhanced_content = {
         'summary': {'original': [], 'enhanced': []},
@@ -1161,27 +1208,55 @@ def _generate_enhanced_content_for_all_sections(resume_data, job_description, co
         'skills': resume_data.get('skills', {})  # Skills don't need enhancement
     }
     
+    def update_progress(message, item_completed=False):
+        nonlocal current_item
+        if item_completed:
+            current_item += 1
+        
+        if progress_bar and total_items > 0:
+            progress = 20 + int((current_item / total_items) * 70)  # 20-90% range
+            progress_bar.progress(min(progress, 90))
+        
+        if status_text:
+            status_text.text(message)
+        
+        logs.append(f"{message} (API calls made: {current_item})")
+        if logs_container:
+            with logs_container.container():
+                for log in logs[-10:]:  # Show last 10 logs
+                    st.text(log)
+    
     # Enhance summary sentences
     if resume_data.get('summary', {}).get('sentences'):
         sentences = resume_data['summary']['sentences']
         enhanced_content['summary']['original'] = sentences.copy()
         
-        # AI enhance each sentence
+        update_progress(f"🔤 Enhancing {len(sentences)} summary sentences...")
+        
+        # AI enhance each sentence with verb tracking
         enhanced_sentences = []
-        for sentence in sentences:
-            enhanced_sentence = _enhance_single_content(
+        for i, sentence in enumerate(sentences):
+            update_progress(f"🔤 Enhancing summary sentence {i+1}/{len(sentences)}")
+            enhanced_sentence = _enhance_content_with_verb_tracking(
                 sentence, 
                 job_description, 
                 company_analysis, 
-                "summary sentence"
+                "summary sentence",
+                used_verbs
             )
             enhanced_sentences.append(enhanced_sentence)
+            update_progress(f"✅ Summary sentence {i+1} enhanced", item_completed=True)
         
         enhanced_content['summary']['enhanced'] = enhanced_sentences
     
     # Enhance experience entries
     if resume_data.get('experience'):
+        update_progress(f"💼 Processing {len(resume_data['experience'])} experience entries...")
+        
         for exp_idx, exp in enumerate(resume_data['experience']):
+            exp_name = f"{exp.get('position', 'Position')} at {exp.get('company', 'Company')}"
+            update_progress(f"💼 Experience {exp_idx+1}: {exp_name}")
+            
             enhanced_exp = {
                 'experience_index': exp_idx,
                 'position': exp.get('position', ''),
@@ -1199,30 +1274,50 @@ def _generate_enhanced_content_for_all_sections(resume_data, job_description, co
             }
             
             # Enhance role summaries
-            for role_summary in exp.get('role_summaries', []):
-                enhanced_role = _enhance_single_content(
-                    role_summary,
-                    job_description,
-                    company_analysis,
-                    "role summary"
-                )
-                enhanced_exp['role_summaries']['enhanced'].append(enhanced_role)
+            role_summaries = exp.get('role_summaries', [])
+            if role_summaries:
+                update_progress(f"🔤 Enhancing {len(role_summaries)} role summaries for {exp_name}")
+                for i, role_summary in enumerate(role_summaries):
+                    update_progress(f"🔤 Role summary {i+1}/{len(role_summaries)} for {exp_name}")
+                    enhanced_role = _enhance_content_with_verb_tracking(
+                        role_summary,
+                        job_description,
+                        company_analysis,
+                        "role summary",
+                        used_verbs
+                    )
+                    enhanced_exp['role_summaries']['enhanced'].append(enhanced_role)
+                    update_progress(f"✅ Role summary {i+1} enhanced for {exp_name}", item_completed=True)
             
             # Enhance accomplishments
-            for accomplishment in exp.get('accomplishments', []):
-                enhanced_acc = _enhance_single_content(
-                    accomplishment,
-                    job_description,
-                    company_analysis,
-                    "accomplishment"
-                )
-                enhanced_exp['accomplishments']['enhanced'].append(enhanced_acc)
+            accomplishments = exp.get('accomplishments', [])
+            if accomplishments:
+                update_progress(f"🎯 Enhancing {len(accomplishments)} accomplishments for {exp_name}")
+                for i, accomplishment in enumerate(accomplishments):
+                    update_progress(f"🎯 Accomplishment {i+1}/{len(accomplishments)} for {exp_name}")
+                    enhanced_acc = _enhance_content_with_verb_tracking(
+                        accomplishment,
+                        job_description,
+                        company_analysis,
+                        "accomplishment",
+                        used_verbs
+                    )
+                    enhanced_exp['accomplishments']['enhanced'].append(enhanced_acc)
+                    update_progress(f"✅ Accomplishment {i+1} enhanced for {exp_name}", item_completed=True)
+            
+            if not role_summaries and not accomplishments:
+                update_progress(f"⏭️ Skipping {exp_name} (no content to enhance)")
             
             enhanced_content['experience'].append(enhanced_exp)
     
     # Enhance projects
     if resume_data.get('projects'):
+        update_progress(f"🚀 Processing {len(resume_data['projects'])} projects...")
+        
         for proj_idx, proj in enumerate(resume_data['projects']):
+            proj_name = proj.get('name', 'Unnamed Project')
+            update_progress(f"🚀 Project {proj_idx+1}: {proj_name}")
+            
             enhanced_proj = {
                 'project_index': proj_idx,
                 'name': proj.get('name', ''),
@@ -1235,21 +1330,30 @@ def _generate_enhanced_content_for_all_sections(resume_data, job_description, co
             }
             
             # Enhance descriptions
-            for description in proj.get('descriptions', []):
-                enhanced_desc = _enhance_single_content(
-                    description,
-                    job_description,
-                    company_analysis,
-                    "project description"
-                )
-                enhanced_proj['descriptions']['enhanced'].append(enhanced_desc)
+            descriptions = proj.get('descriptions', [])
+            if descriptions:
+                update_progress(f"🔤 Enhancing {len(descriptions)} descriptions for {proj_name}")
+                for i, description in enumerate(descriptions):
+                    update_progress(f"🔤 Description {i+1}/{len(descriptions)} for {proj_name}")
+                    enhanced_desc = _enhance_content_with_verb_tracking(
+                        description,
+                        job_description,
+                        company_analysis,
+                        "project description",
+                        used_verbs
+                    )
+                    enhanced_proj['descriptions']['enhanced'].append(enhanced_desc)
+                    update_progress(f"✅ Project description {i+1} enhanced for {proj_name}", item_completed=True)
+            else:
+                update_progress(f"⏭️ Skipping {proj_name} (no descriptions to enhance)")
             
             enhanced_content['projects'].append(enhanced_proj)
     
+    update_progress("🎉 All content enhancement completed!")
     return enhanced_content
 
 def _enhance_single_content(content, job_description, company_analysis, content_type):
-    """Use AI to enhance a single piece of content"""
+    """Use AI to enhance a single piece of content (legacy function)"""
     
     try:
         from openai import OpenAI
@@ -1290,6 +1394,128 @@ def _enhance_single_content(content, job_description, company_analysis, content_
     except Exception as e:
         print(f"Enhancement failed for {content_type}: {e}")
         return content  # Return original if enhancement fails
+
+def _enhance_content_with_verb_tracking(content, job_description, company_analysis, content_type, used_verbs):
+    """Use AI to enhance content while tracking and avoiding repeated action verbs"""
+    
+    try:
+        import json
+        from openai import OpenAI
+        import os
+        
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+        
+        company_type = company_analysis.get('company_type', 'tech')
+        top_values = company_analysis.get('top_values', [])
+        
+        # Convert set to list for JSON serialization
+        used_verbs_list = list(used_verbs) if used_verbs else []
+        
+        prompt = f"""
+        Enhance this resume {content_type} for a {company_type} company.
+        
+        Original: "{content}"
+        
+        Company values: {', '.join(top_values)}
+        
+        CRITICAL: Avoid starting with these already used action verbs: {', '.join(used_verbs_list)}
+        
+        Instructions:
+        - Keep the same core facts and achievements
+        - Use a DIFFERENT action verb than the ones listed above
+        - Improve language for impact and clarity
+        - Use terminology that resonates with {company_type} companies
+        - Make it more compelling while staying truthful
+        - Keep it concise but impactful
+        
+        Return a JSON response with this exact format:
+        {{
+            "enhanced_content": "your enhanced text here",
+            "action_verb_used": "the main action verb you started with"
+        }}
+        
+        Return only valid JSON, no explanation or markdown formatting.
+        """
+        
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,  # Slightly higher for more variety
+            max_tokens=300
+        )
+        
+        response_text = response.choices[0].message.content.strip()
+        
+        # Clean up any markdown formatting
+        if response_text.startswith('```json'):
+            response_text = response_text.replace('```json', '').replace('```', '').strip()
+        elif response_text.startswith('```'):
+            response_text = response_text.replace('```', '').strip()
+        
+        try:
+            # Parse JSON response
+            result = json.loads(response_text)
+            enhanced_content = result.get('enhanced_content', content)
+            action_verb = result.get('action_verb_used', '')
+            
+            # Add the verb to used_verbs set
+            if action_verb:
+                used_verbs.add(action_verb.lower())
+                
+            return enhanced_content
+            
+        except json.JSONDecodeError:
+            print(f"JSON parsing failed for {content_type}. Response: {response_text[:100]}...")
+            
+            # Fallback: try to extract enhanced content from response
+            # Look for quotes or return the whole response if it looks like enhanced content
+            if '"' in response_text and 'enhanced_content' in response_text:
+                # Try to extract from malformed JSON
+                try:
+                    start = response_text.find('"enhanced_content":') + len('"enhanced_content":')
+                    content_part = response_text[start:].strip()
+                    if content_part.startswith('"'):
+                        end = content_part.find('",', 1)
+                        if end == -1:
+                            end = content_part.find('"', 1)
+                        if end > 0:
+                            fallback_content = content_part[1:end]
+                            # Try to extract verb too
+                            first_word = fallback_content.split()[0].rstrip('.,;:').lower()
+                            used_verbs.add(first_word)
+                            return fallback_content
+                except:
+                    pass
+            
+            # Final fallback: use original enhancement function
+            print(f"Using fallback enhancement for {content_type}")
+            enhanced = _enhance_single_content(content, job_description, company_analysis, content_type)
+            
+            # Try to extract first word as verb
+            try:
+                words = enhanced.split()
+                if words:
+                    first_word = words[0].rstrip('.,;:').lower()
+                    used_verbs.add(first_word)
+            except:
+                pass
+                
+            return enhanced
+        
+    except Exception as e:
+        print(f"Verb tracking enhancement failed for {content_type}: {e}")
+        print(f"Content was: {content[:100]}...")  # Show first 100 chars for debugging
+        
+        # Try fallback enhancement
+        try:
+            fallback_result = _enhance_single_content(content, job_description, company_analysis, content_type)
+            print(f"Fallback enhancement succeeded for {content_type}")
+            return fallback_result
+        except Exception as fallback_error:
+            print(f"Fallback enhancement also failed for {content_type}: {fallback_error}")
+            print(f"Returning original content for {content_type}")
+            return content  # Return original if all fails
 
 
 def _render_step2_review_enhancements():
@@ -1347,10 +1573,13 @@ def _render_step2_review_enhancements():
         for exp_idx, enhanced_exp in enumerate(enhanced_content['experience']):
             with st.expander(f"{enhanced_exp['position']} at {enhanced_exp['company']}", expanded=False):
                 
+                # Initialize arrays for this specific experience entry
+                approved_role_summaries = []
+                approved_accomplishments = []
+                
                 # Role summaries
                 if enhanced_exp['role_summaries']['enhanced']:
                     st.write("**Role Summaries:**")
-                    approved_role_summaries = []
                     
                     for i, (original, enhanced) in enumerate(zip(
                         enhanced_exp['role_summaries']['original'],
@@ -1376,7 +1605,6 @@ def _render_step2_review_enhancements():
                 # Accomplishments
                 if enhanced_exp['accomplishments']['enhanced']:
                     st.write("**Accomplishments:**")
-                    approved_accomplishments = []
                     
                     for i, (original, enhanced) in enumerate(zip(
                         enhanced_exp['accomplishments']['original'],
@@ -1399,15 +1627,16 @@ def _render_step2_review_enhancements():
                         if use_enh_acc:
                             approved_accomplishments.append(edited_acc)
                 
-                # Store approved experience content
+                # Store approved experience content for this specific experience entry
                 if 'approved_content' not in st.session_state:
                     st.session_state.approved_content = {}
                 if 'experience' not in st.session_state.approved_content:
                     st.session_state.approved_content['experience'] = {}
                 
+                # Always use the properly scoped variables (no more locals() check needed)
                 st.session_state.approved_content['experience'][exp_idx] = {
-                    'role_summaries': approved_role_summaries if 'approved_role_summaries' in locals() else [],
-                    'accomplishments': approved_accomplishments if 'approved_accomplishments' in locals() else []
+                    'role_summaries': approved_role_summaries,
+                    'accomplishments': approved_accomplishments
                 }
     
     # Review Projects
@@ -1417,9 +1646,11 @@ def _render_step2_review_enhancements():
         for proj_idx, enhanced_proj in enumerate(enhanced_content['projects']):
             with st.expander(f"Project: {enhanced_proj['name']}", expanded=False):
                 
+                # Initialize array for this specific project entry
+                approved_project_descriptions = []
+                
                 if enhanced_proj['descriptions']['enhanced']:
                     st.write("**Project Descriptions:**")
-                    approved_project_descriptions = []
                     
                     for i, (original, enhanced) in enumerate(zip(
                         enhanced_proj['descriptions']['original'],
@@ -1442,13 +1673,14 @@ def _render_step2_review_enhancements():
                         if use_enh_proj:
                             approved_project_descriptions.append(edited_proj)
                 
-                # Store approved project content
+                # Store approved project content for this specific project entry
                 if 'projects' not in st.session_state.approved_content:
                     st.session_state.approved_content['projects'] = {}
                 
+                # Always use the properly scoped variable (no more locals() check needed)
                 st.session_state.approved_content['projects'][proj_idx] = {
                     'name': enhanced_proj['name'],
-                    'descriptions': approved_project_descriptions if 'approved_project_descriptions' in locals() else []
+                    'descriptions': approved_project_descriptions
                 }
     
     # Navigation buttons
@@ -1551,30 +1783,43 @@ def _render_step3_generate_matched_resume():
         st.info("👉 Go to 'Edit Resume Sections' to make final adjustments")
 
 def _create_enhanced_resume_data_structure():
-    """Create resume data structure from approved enhanced content"""
+    """Create resume data structure from approved enhanced content while preserving manual edits"""
     
-    original_data = st.session_state.resume_data.copy()
+    # CRITICAL: Use the latest manually edited data, not the original parsed data
+    enhanced_data = st.session_state.resume_data.copy()  # This includes manual edits like GitHub, website
     approved = st.session_state.approved_content
     
-    # Replace with approved enhanced content
+    # Only replace AI-enhanced sections, preserve everything else (contact, skills, education, etc.)
     if approved.get('summary_sentences'):
-        original_data['summary'] = {'sentences': approved['summary_sentences']}
+        # Preserve existing summary structure, only replace sentences
+        if 'summary' not in enhanced_data:
+            enhanced_data['summary'] = {}
+        enhanced_data['summary']['sentences'] = approved['summary_sentences']
     
     if approved.get('experience'):
         for exp_idx, approved_exp in approved['experience'].items():
-            if exp_idx < len(original_data.get('experience', [])):
+            if exp_idx < len(enhanced_data.get('experience', [])):
+                # Only replace AI-enhanced fields, preserve company, position, dates, etc.
                 if approved_exp.get('role_summaries'):
-                    original_data['experience'][exp_idx]['role_summaries'] = approved_exp['role_summaries']
+                    enhanced_data['experience'][exp_idx]['role_summaries'] = approved_exp['role_summaries']
                 if approved_exp.get('accomplishments'):
-                    original_data['experience'][exp_idx]['accomplishments'] = approved_exp['accomplishments']
+                    enhanced_data['experience'][exp_idx]['accomplishments'] = approved_exp['accomplishments']
     
     if approved.get('projects'):
         for proj_idx, approved_proj in approved['projects'].items():
-            if proj_idx < len(original_data.get('projects', [])):
+            if proj_idx < len(enhanced_data.get('projects', [])):
+                # Only replace AI-enhanced descriptions, preserve name, url, technologies
                 if approved_proj.get('descriptions'):
-                    original_data['projects'][proj_idx]['descriptions'] = approved_proj['descriptions']
+                    enhanced_data['projects'][proj_idx]['descriptions'] = approved_proj['descriptions']
     
-    return original_data
+    # Ensure contact info is preserved (this is the key fix!)
+    # The copy() should already include this, but let's be explicit for debugging
+    contact_fields = ['contact', 'skills', 'education', 'certifications']
+    for field in contact_fields:
+        if field in st.session_state.resume_data:
+            enhanced_data[field] = st.session_state.resume_data[field]
+    
+    return enhanced_data
 
 if __name__ == "__main__":
     main()
