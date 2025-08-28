@@ -9,6 +9,7 @@ load_dotenv()
 from parser import ResumeParser
 from matcher import JobMatcher
 from exporter import PDFExporter
+from theme_exporter import ThemeExporter
 import sqlite3
 import json
 
@@ -21,6 +22,8 @@ if 'selected_content' not in st.session_state:
     st.session_state.selected_content = None
 if 'final_markdown' not in st.session_state:
     st.session_state.final_markdown = ""
+if 'selected_theme' not in st.session_state:
+    st.session_state.selected_theme = ('json_resume', 'professional')
 
 def init_database():
     """Initialize SQLite database for storing resume data"""
@@ -514,43 +517,173 @@ def edit_markdown_page():
 def export_pdf_page():
     st.header("📄 Export to PDF")
     
-    if not st.session_state.final_markdown:
-        st.warning("Please complete markdown editing first!")
+    if not st.session_state.resume_data:
+        st.warning("Please upload and parse a resume first!")
         return
     
-    st.subheader("Final Resume Preview")
-    st.markdown(st.session_state.final_markdown)
+    # Theme Selection Section
+    st.subheader("🎨 Choose Resume Theme")
     
-    st.subheader("Export Options")
+    try:
+        theme_exporter = ThemeExporter()
+        available_themes = theme_exporter.get_theme_list()
+        
+        # Create theme options for selectbox
+        theme_options = []
+        theme_mapping = {}
+        
+        for engine, theme_name, _ in available_themes:
+            display_name = f"{engine} - {theme_name.title()}"
+            theme_options.append(display_name)
+            theme_mapping[display_name] = (engine.lower().replace(' ', '_'), theme_name)
+        
+        # Theme selection
+        selected_display = st.selectbox(
+            "Select a theme:",
+            theme_options,
+            index=0,
+            help="Choose from various professional resume themes"
+        )
+        
+        selected_engine, selected_theme = theme_mapping[selected_display]
+        st.session_state.selected_theme = (selected_engine, selected_theme)
+        
+        # Show theme info
+        theme_info = theme_exporter.get_theme_info(selected_engine, selected_theme)
+        if theme_info:
+            st.info(f"📝 {theme_info}")
+        
+        # Preview section (only for JSON Resume themes)
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            if selected_engine == 'json_resume':
+                if st.button("👁️ Preview Theme", help="Generate HTML preview"):
+                    with st.spinner("Generating preview..."):
+                        try:
+                            html_preview = theme_exporter.preview_theme(
+                                st.session_state.resume_data, 
+                                selected_engine, 
+                                selected_theme
+                            )
+                            
+                            # Display preview in expander
+                            with st.expander("Theme Preview", expanded=True):
+                                st.components.v1.html(html_preview, height=400, scrolling=True)
+                                
+                        except Exception as e:
+                            st.error(f"Preview error: {str(e)}")
+            else:
+                st.info("Preview available only for JSON Resume themes")
+        
+        with col2:
+            # Generate PDF button
+            if st.button("📄 Generate PDF", type="primary"):
+                with st.spinner(f"Generating PDF with {selected_display}..."):
+                    try:
+                        # Use selected content if available, otherwise use full resume data
+                        resume_data = st.session_state.selected_content or st.session_state.resume_data
+                        
+                        pdf_bytes = theme_exporter.export_resume(
+                            resume_data,
+                            selected_engine,
+                            selected_theme,
+                            'pdf'
+                        )
+                        
+                        # Filename based on theme
+                        filename = f"resume_{selected_theme}_{selected_engine}.pdf"
+                        
+                        st.download_button(
+                            label="⬇️ Download PDF",
+                            data=pdf_bytes,
+                            file_name=filename,
+                            mime="application/pdf"
+                        )
+                        
+                        st.success("✅ PDF generated successfully!")
+                        
+                    except Exception as e:
+                        st.error(f"Error generating PDF: {str(e)}")
+                        st.exception(e)
+        
+        # Additional export options
+        st.subheader("📋 Additional Options")
+        
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            if st.button("📄 Export All Themes", help="Generate PDFs with multiple themes"):
+                with st.spinner("Generating multiple themes..."):
+                    try:
+                        resume_data = st.session_state.selected_content or st.session_state.resume_data
+                        
+                        # Generate a few popular themes
+                        popular_themes = [
+                            ('json_resume', 'professional'),
+                            ('json_resume', 'elegant'),
+                            ('json_resume', 'stackoverflow'),
+                            ('reportlab', 'professional')
+                        ]
+                        
+                        for engine, theme in popular_themes:
+                            try:
+                                pdf_bytes = theme_exporter.export_resume(
+                                    resume_data, engine, theme, 'pdf'
+                                )
+                                
+                                filename = f"resume_{theme}_{engine}.pdf"
+                                st.download_button(
+                                    label=f"⬇️ {engine.title()} - {theme.title()}",
+                                    data=pdf_bytes,
+                                    file_name=filename,
+                                    mime="application/pdf",
+                                    key=f"download_{engine}_{theme}"
+                                )
+                            except Exception as e:
+                                st.warning(f"Could not generate {engine} - {theme}: {str(e)}")
+                        
+                        st.success("✅ Multiple themes generated!")
+                        
+                    except Exception as e:
+                        st.error(f"Error generating multiple themes: {str(e)}")
+        
+        with col4:
+            if st.button("📋 Copy Markdown"):
+                if st.session_state.final_markdown:
+                    st.code(st.session_state.final_markdown, language="markdown")
+                    st.info("Copy the markdown above to use elsewhere")
+                else:
+                    st.warning("No markdown content available. Please complete job matching first.")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("📄 Generate PDF", type="primary"):
-            with st.spinner("Generating PDF..."):
-                try:
-                    exporter = PDFExporter()
-                    pdf_bytes = exporter.markdown_to_pdf(
-                        st.session_state.final_markdown,
-                        filename="resume.pdf"
-                    )
-                    
-                    st.download_button(
-                        label="⬇️ Download PDF",
-                        data=pdf_bytes,
-                        file_name="resume.pdf",
-                        mime="application/pdf"
-                    )
-                    
-                    st.success("✅ PDF generated successfully!")
-                    
-                except Exception as e:
-                    st.error(f"Error generating PDF: {str(e)}")
-    
-    with col2:
-        if st.button("📋 Copy Markdown"):
-            st.code(st.session_state.final_markdown, language="markdown")
-            st.info("Copy the markdown above to use elsewhere")
+    except Exception as e:
+        st.error(f"Theme system error: {str(e)}")
+        st.info("Falling back to basic export...")
+        
+        # Fallback to original export
+        if st.session_state.final_markdown:
+            if st.button("📄 Generate Basic PDF", type="primary"):
+                with st.spinner("Generating PDF..."):
+                    try:
+                        exporter = PDFExporter()
+                        pdf_bytes = exporter.markdown_to_pdf(
+                            st.session_state.final_markdown,
+                            filename="resume.pdf"
+                        )
+                        
+                        st.download_button(
+                            label="⬇️ Download PDF",
+                            data=pdf_bytes,
+                            file_name="resume.pdf",
+                            mime="application/pdf"
+                        )
+                        
+                        st.success("✅ PDF generated successfully!")
+                        
+                    except Exception as e:
+                        st.error(f"Error generating PDF: {str(e)}")
+        else:
+            st.warning("Please complete markdown editing first!")
 
 if __name__ == "__main__":
     main()
