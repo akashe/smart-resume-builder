@@ -3,6 +3,7 @@ import tempfile
 import os
 from datetime import datetime
 import yaml
+import re
 
 class RenderCVTransformer:
     """Transform internal resume data to RenderCV YAML format"""
@@ -49,7 +50,7 @@ class RenderCVTransformer:
         """Format phone number for RenderCV validation"""
         # Always return the working phone number format that RenderCV accepts
         # RenderCV seems very strict about phone validation
-        return '+1-609-999-9995'
+        return phone
     
     def _build_social_networks(self, contact: Dict[str, Any]) -> List[Dict[str, str]]:
         """Build social networks section"""
@@ -102,15 +103,15 @@ class RenderCVTransformer:
         if experiences:
             sections['experience'] = self._build_experience_entries(experiences)
         
-        # # Education section
-        # education = resume_data.get('education', [])
-        # if education:
-        #     sections['education'] = self._build_education_entries(education)
+        # Education section
+        education = resume_data.get('education', [])
+        if education:
+            sections['education'] = self._build_education_entries(education)
         
-        # # Projects section
-        # projects = resume_data.get('projects', [])
-        # if projects:
-        #     sections['projects'] = self._build_project_entries(projects)
+        # Projects section
+        projects = resume_data.get('projects', [])
+        if projects:
+            sections['projects'] = self._build_project_entries(projects)
         
         # Skills section
         skills_data = resume_data.get('skills', {})
@@ -154,29 +155,56 @@ class RenderCVTransformer:
         return entries
     
     def _build_education_entries(self, education: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Build education entries"""
+        """Build education entries according to RenderCV EducationEntry model"""
         entries = []
         
         for edu in education:
+            # Parse graduation date to extract start/end dates
+            graduation = edu.get('graduation', '')
+            start_date, end_date = self._parse_education_dates(graduation)
+            
+            # RenderCV EducationEntry requires institution and area fields
+            institution = edu.get('institution', '')
+            area = edu.get('field', '') or edu.get('area', '') or edu.get('degree', '')
+            
+            # Skip entry if we don't have required fields
+            if not institution or not area:
+                continue
+                
             entry = {
-                'institution': edu.get('institution', ''),
-                'area': edu.get('field', '') or edu.get('area', ''),
-                'degree': edu.get('degree', ''),
-                'location': edu.get('location', ''),
-                'start_date': edu.get('start_date', ''),
-                'end_date': edu.get('graduation', '') or edu.get('end_date', ''),
-                'highlights': edu.get('highlights', [])
+                'institution': institution,
+                'area': area
             }
             
-            if edu.get('gpa'):
-                entry['highlights'].append(f"GPA: {edu['gpa']}")
+            # Add optional fields only if they have valid values
+            degree = edu.get('degree', '')
+            if degree:
+                entry['degree'] = degree
+                
+            location = edu.get('location', '')
+            if location:
+                entry['location'] = location
+                
+            if start_date:
+                entry['start_date'] = start_date
+                
+            if end_date:
+                entry['end_date'] = end_date
             
+            # Build highlights array
+            highlights = edu.get('highlights', [])
+            if edu.get('gpa'):
+                highlights.append(f"GPA: {edu['gpa']}")
+                
+            if highlights:
+                entry['highlights'] = highlights
+                
             entries.append(entry)
         
         return entries
     
     def _build_project_entries(self, projects: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Build project entries"""
+        """Build project entries according to RenderCV NormalEntry model"""
         entries = []
         
         for proj in projects:
@@ -196,16 +224,27 @@ class RenderCVTransformer:
             if proj.get('achievements'):
                 highlights.extend(proj['achievements'])
             
+            # RenderCV NormalEntry requires name field
+            project_name = proj.get('name', '')
+            if not project_name:
+                continue  # Skip projects without names
+            
             entry = {
-                'name': proj.get('name', ''),
-                'summary': summary,
-                'highlights': highlights,
-                'start_date': proj.get('start_date', ''),
-                'end_date': proj.get('end_date', '') or 'present'
+                'name': project_name,
+                'highlights': highlights
             }
             
+            # Add optional fields only if they have valid values
+            if summary:
+                entry['summary'] = summary
+            
+            # Add location if available
+            if proj.get('location'):
+                entry['location'] = proj['location']
+            
+            # Handle URL - RenderCV expects markdown links in the name field
             if proj.get('url'):
-                entry['name'] = f"[{entry['name']}]({proj['url']})"
+                entry['name'] = f"[{project_name}]({proj['url']})"
             
             entries.append(entry)
         
@@ -227,6 +266,53 @@ class RenderCVTransformer:
         
         return entries
     
+    def _parse_education_dates(self, graduation_str: str) -> tuple:
+        """Parse education graduation string to start_date and end_date"""
+        if not graduation_str:
+            return '', ''
+        
+        graduation_str = graduation_str.strip()
+        
+        # If it's just a year like "2020", assume it's graduation year
+        if graduation_str.isdigit() and len(graduation_str) == 4:
+            year = graduation_str
+            # Assume 4 year program ending in graduation year
+            try:
+                start_year = str(int(year) - 4)
+                return f"{start_year}-09", f"{year}-05"  # Sept to May typical academic year
+            except:
+                return f"{year}-01", f"{year}-12"
+        
+        # If it contains a range like "2016 - 2020" 
+        if ' - ' in graduation_str:
+            parts = graduation_str.split(' - ')
+            if len(parts) >= 2:
+                start_year = parts[0].strip()
+                end_year = parts[1].strip()
+                
+                # Ensure we have valid years
+                if start_year.isdigit() and len(start_year) == 4:
+                    start_date = f"{start_year}-09"  # Assume Sept start
+                else:
+                    start_date = self._normalize_date(start_year)
+                
+                if end_year.isdigit() and len(end_year) == 4:
+                    end_date = f"{end_year}-05"  # Assume May graduation
+                elif end_year.lower() in ['present', 'current', 'now']:
+                    end_date = 'present'
+                else:
+                    end_date = self._normalize_date(end_year)
+                
+                return start_date, end_date
+        
+        # Try to parse as a single date
+        normalized = self._normalize_date(graduation_str)
+        if normalized and normalized != graduation_str:
+            return normalized, normalized
+        
+        # If we can't parse it properly, return empty
+        return '', ''
+
     def _parse_duration(self, duration_str: str) -> tuple:
         """Parse duration string to start_date and end_date"""
         if not duration_str:
@@ -248,12 +334,19 @@ class RenderCVTransformer:
             return self._normalize_date(duration_str), ''
     
     def _normalize_date(self, date_str: str) -> str:
-        """Convert date to RenderCV format (YYYY-MM)"""
+        """Convert date to RenderCV format (YYYY-MM-DD, YYYY-MM, or YYYY)"""
         if not date_str:
             return ''
         
-        # Simple conversion - can be enhanced
         date_str = date_str.strip()
+        
+        # If it's already in a valid RenderCV format, return it
+        if re.match(r'^\d{4}$', date_str):  # YYYY format
+            return date_str
+        elif re.match(r'^\d{4}-\d{2}$', date_str):  # YYYY-MM format  
+            return date_str
+        elif re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):  # YYYY-MM-DD format
+            return date_str
         
         # Handle formats like "Jan 2020", "January 2020"
         month_mapping = {
@@ -276,11 +369,28 @@ class RenderCVTransformer:
             month_name = parts[0]
             year = parts[1]
             
-            if month_name in month_mapping:
-                return f"{year}-{month_mapping[month_name]}"
+            # Validate year format
+            if year.isdigit() and len(year) == 4:
+                if month_name in month_mapping:
+                    return f"{year}-{month_mapping[month_name]}"
         
-        # If we can't parse it, return as-is
-        return date_str
+        # If it's just a year (like "2020")
+        if date_str.isdigit() and len(date_str) == 4:
+            return date_str
+            
+        # Try to extract year from formats like "2020-21", "20-21", etc
+        if '-' in date_str:
+            year_part = date_str.split('-')[0]
+            if year_part.isdigit():
+                if len(year_part) == 4:
+                    return year_part
+                elif len(year_part) == 2:
+                    # Assume 20xx format
+                    return f"20{year_part}"
+        
+        # If we can't parse it properly, return empty string to avoid validation errors
+        print(f"Warning: Could not parse date '{date_str}', returning empty string")
+        return ''
     
     def _get_design_config(self, theme: str) -> Dict[str, Any]:
         """Get design configuration for specified theme"""

@@ -548,7 +548,6 @@ def final_markdown_editor_page():
     st.info("👉 Go to 'Export PDF' to generate your final resume")
 
 def export_pdf_page():
-    st.header("📄 Export to PDF")
     
     if not st.session_state.resume_data:
         st.warning("Please upload and parse a resume first!")
@@ -557,53 +556,13 @@ def export_pdf_page():
     # Show what content will be used
     if st.session_state.final_markdown:
         st.success("✅ **Using Final Edited Markdown** - Your latest changes from Final Markdown Editor")
-        
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            if st.button("📄 Export Markdown as PDF", type="primary"):
-                # Convert markdown to PDF directly
-                try:
-                    from markdown import markdown
-                    import pdfkit
-                    
-                    html_content = markdown(st.session_state.final_markdown)
-                    pdf_options = {
-                        'page-size': 'A4',
-                        'margin-top': '0.75in',
-                        'margin-right': '0.75in',
-                        'margin-bottom': '0.75in',
-                        'margin-left': '0.75in',
-                        'encoding': "UTF-8",
-                        'no-outline': None
-                    }
-                    
-                    pdf_bytes = pdfkit.from_string(html_content, False, options=pdf_options)
-                    
-                    st.download_button(
-                        label="⬇️ Download Markdown PDF",
-                        data=pdf_bytes,
-                        file_name="resume_final_markdown.pdf",
-                        mime="application/pdf"
-                    )
-                    st.success("✅ PDF generated from your final markdown!")
-                    
-                except ImportError:
-                    st.warning("📄 Markdown PDF export requires additional packages. Using theme-based export instead.")
-                except Exception as e:
-                    st.error(f"Markdown PDF export failed: {e}")
-        
-        with col2:
-            st.info("💡 **Alternative**: Use theme-based export below (uses resume data structure)")
-        
-        st.divider()
-    
     elif st.session_state.selected_content:
         st.info("📊 **Using Matched Resume Content** - AI-selected content for your target job")
     else:
         st.info("📋 **Using Original Resume Data** - Complete parsed resume")
     
     # Theme Selection Section
-    st.subheader("🎨 Choose Resume Theme (Structured Data Export)")
+    st.subheader("🎨 Choose Resume Theme")
     
     try:
         theme_exporter = ThemeExporter()
