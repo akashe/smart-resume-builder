@@ -137,6 +137,7 @@ class ResumeParser:
                 "education": [
                     {{
                         "degree": "Degree Name",
+                        "specialization": "Field of Study/Major/Specialization",
                         "institution": "School Name",
                         "graduation": "Year or Month/Year",
                         "location": "City, State",
@@ -261,6 +262,7 @@ class ResumeParser:
                 if isinstance(edu, dict):
                     validated_data['education'].append({
                         'degree': str(edu.get('degree', '')).strip(),
+                        'specialization': str(edu.get('specialization', '')).strip(),
                         'institution': str(edu.get('institution', '')).strip(),
                         'graduation': str(edu.get('graduation', '')).strip(),
                         'location': str(edu.get('location', '')).strip(),

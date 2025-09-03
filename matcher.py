@@ -373,10 +373,10 @@ class JobMatcher:
         
         sentences = summary_data.get('sentences', [])
         if not sentences:
-            return {'selected_sentences': []}
+            return {'sentences': []}
         
         if len(sentences) <= 2:
-            return {'selected_sentences': sentences}
+            return {'sentences': sentences}
         
         # Use AI to select best sentences
         prompt = f"""
@@ -406,11 +406,11 @@ class JobMatcher:
             if not selected_sentences:
                 selected_sentences = sentences[:2]  # Fallback
                 
-            return {'selected_sentences': selected_sentences}
+            return {'sentences': selected_sentences}
             
         except Exception as e:
             print(f"Error selecting summary sentences: {e}")
-            return {'selected_sentences': sentences[:2]}
+            return {'sentences': sentences[:2]}
     
     def _select_experience_content(self, experience_list: List[Dict], job_description: str, job_keywords: List[str]) -> List[Dict]:
         """Select best content for each experience"""
@@ -423,27 +423,28 @@ class JobMatcher:
                 'company': exp.get('company', ''),
                 'duration': exp.get('duration', ''),
                 'location': exp.get('location', ''),
-                'selected_role_summary': '',
-                'selected_accomplishments': []
+                'role_summaries': [],
+                'accomplishments': []
             }
             
             # Select best role summary
             role_summaries = exp.get('role_summaries', [])
             if role_summaries:
                 if len(role_summaries) == 1:
-                    selected_exp['selected_role_summary'] = role_summaries[0]
+                    selected_exp['role_summaries'] = [role_summaries[0]]
                 else:
-                    selected_exp['selected_role_summary'] = self._ai_select_best_option(
+                    best_role_summary = self._ai_select_best_option(
                         role_summaries, job_description, job_keywords, "role summary"
                     )
+                    selected_exp['role_summaries'] = [best_role_summary] if best_role_summary else []
             
             # Select best accomplishments (top 3-4)
             accomplishments = exp.get('accomplishments', [])
             if accomplishments:
                 if len(accomplishments) <= 3:
-                    selected_exp['selected_accomplishments'] = accomplishments
+                    selected_exp['accomplishments'] = accomplishments
                 else:
-                    selected_exp['selected_accomplishments'] = self._ai_select_multiple_options(
+                    selected_exp['accomplishments'] = self._ai_select_multiple_options(
                         accomplishments, job_description, job_keywords, "accomplishments", max_selections=4
                     )
             
@@ -460,7 +461,7 @@ class JobMatcher:
             selected_proj = {
                 'name': proj.get('name', ''),
                 'url': proj.get('url', ''),
-                'selected_description': '',
+                'descriptions': [],
                 'technologies': proj.get('technologies', []),
                 'achievements': proj.get('achievements', [])
             }
@@ -469,11 +470,12 @@ class JobMatcher:
             descriptions = proj.get('descriptions', [])
             if descriptions:
                 if len(descriptions) == 1:
-                    selected_proj['selected_description'] = descriptions[0]
+                    selected_proj['descriptions'] = [descriptions[0]]
                 else:
-                    selected_proj['selected_description'] = self._ai_select_best_option(
+                    best_description = self._ai_select_best_option(
                         descriptions, job_description, job_keywords, "project description"
                     )
+                    selected_proj['descriptions'] = [best_description] if best_description else []
             
             selected_projects.append(selected_proj)
         

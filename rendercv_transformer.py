@@ -165,7 +165,7 @@ class RenderCVTransformer:
             
             # RenderCV EducationEntry requires institution and area fields
             institution = edu.get('institution', '')
-            area = edu.get('field', '') or edu.get('area', '') or edu.get('degree', '')
+            area = edu.get('specialization', '')
             
             # Skip entry if we don't have required fields
             if not institution or not area:

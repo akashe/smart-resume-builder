@@ -398,6 +398,7 @@ def edit_sections_page():
                 col1, col2 = st.columns(2)
                 with col1:
                     edu['degree'] = st.text_input("Degree:", value=edu.get('degree', ''), key=f"edu_deg_{edu_idx}")
+                    edu['specialization'] = st.text_input("Specialization/Field of Study:", value=edu.get('specialization', ''), key=f"edu_spec_{edu_idx}")
                     edu['institution'] = st.text_input("Institution:", value=edu.get('institution', ''), key=f"edu_inst_{edu_idx}")
                 with col2:
                     edu['graduation'] = st.text_input("Graduation:", value=edu.get('graduation', ''), key=f"edu_grad_{edu_idx}")
@@ -461,6 +462,14 @@ def edit_markdown_page():
         return
     
     st.markdown("*Edit each section with AI positioning suggestions - final resume updates automatically*")
+    
+    # Determine which data source to use for editing
+    if st.session_state.selected_content:
+        st.info("📊 **Editing Matched Resume Content** - AI-selected content for your target job")
+        st.session_state.current_editing_data = st.session_state.selected_content
+    else:
+        st.info("📋 **Editing Original Resume Data** - Complete resume content")  
+        st.session_state.current_editing_data = st.session_state.resume_data
     
     # Initialize markdown sections in session state if not exists
     if 'markdown_sections' not in st.session_state:
@@ -745,7 +754,7 @@ def _generate_initial_markdown_sections():
 
 def _generate_contact_markdown():
     """Generate contact section markdown"""
-    contact = st.session_state.resume_data.get('contact', {})
+    contact = st.session_state.current_editing_data.get('contact', {})
     
     markdown = ""
     if contact.get('name'):
@@ -769,7 +778,7 @@ def _generate_contact_markdown():
 
 def _generate_summary_markdown():
     """Generate summary section markdown"""
-    summary = st.session_state.resume_data.get('summary', {})
+    summary = st.session_state.current_editing_data.get('summary', {})
     sentences = summary.get('sentences', [])
     
     if sentences:
@@ -778,7 +787,7 @@ def _generate_summary_markdown():
 
 def _generate_experience_markdown():
     """Generate experience section markdown"""
-    experiences = st.session_state.resume_data.get('experience', [])
+    experiences = st.session_state.current_editing_data.get('experience', [])
     
     if not experiences:
         return ""
@@ -808,7 +817,7 @@ def _generate_experience_markdown():
 
 def _generate_projects_markdown():
     """Generate projects section markdown"""
-    projects = st.session_state.resume_data.get('projects', [])
+    projects = st.session_state.current_editing_data.get('projects', [])
     
     if not projects:
         return ""
@@ -816,7 +825,10 @@ def _generate_projects_markdown():
     markdown = "## Projects\n\n"
     
     for proj in projects:
-        markdown += f"### {proj.get('name', 'Project Name')}\n"
+        project_header = proj.get('name', 'Project Name')
+        if proj.get('url'):
+            project_header = f"[{project_header}]({proj['url']})"
+        markdown += f"### {project_header}\n"
         
         if proj.get('descriptions') and proj['descriptions']:
             markdown += proj['descriptions'][0] + "\n\n"
@@ -828,7 +840,7 @@ def _generate_projects_markdown():
 
 def _generate_skills_markdown():
     """Generate skills section markdown"""
-    skills = st.session_state.resume_data.get('skills', {})
+    skills = st.session_state.current_editing_data.get('skills', {})
     
     if not skills:
         return ""
@@ -844,7 +856,7 @@ def _generate_skills_markdown():
 
 def _generate_education_markdown():
     """Generate education section markdown"""
-    education = st.session_state.resume_data.get('education', [])
+    education = st.session_state.current_editing_data.get('education', [])
     
     if not education:
         return ""
@@ -852,7 +864,10 @@ def _generate_education_markdown():
     markdown = "## Education\n\n"
     
     for edu in education:
-        markdown += f"### {edu.get('degree', 'Degree')} - {edu.get('institution', 'Institution')}\n"
+        degree_text = edu.get('degree', 'Degree')
+        if edu.get('specialization'):
+            degree_text += f" in {edu['specialization']}"
+        markdown += f"### {degree_text} - {edu.get('institution', 'Institution')}\n"
         if edu.get('graduation'):
             markdown += f"*{edu['graduation']}*"
         if edu.get('location'):
@@ -866,7 +881,7 @@ def _render_contact_section():
     with st.container():
         st.subheader("👤 Contact Information")
         
-        contact = st.session_state.resume_data.get('contact', {})
+        contact = st.session_state.current_editing_data.get('contact', {})
         
         # Edit contact info
         col1, col2 = st.columns(2)
@@ -881,8 +896,8 @@ def _render_contact_section():
             github = st.text_input("GitHub:", value=contact.get('github', ''), key="md_github")
             website = st.text_input("Website:", value=contact.get('website', ''), key="md_website")
         
-        # Update contact in resume data with ALL fields
-        st.session_state.resume_data['contact'] = {
+        # Update contact in editing data with ALL fields
+        st.session_state.current_editing_data['contact'] = {
             'name': name, 'title': title, 'email': email, 'phone': phone, 
             'location': location, 'linkedin': linkedin, 'github': github, 'website': website
         }
@@ -905,7 +920,7 @@ def _render_summary_section():
     with st.container():
         st.subheader(section_header)
         
-        sentences = st.session_state.resume_data.get('summary', {}).get('sentences', [])
+        sentences = st.session_state.current_editing_data.get('summary', {}).get('sentences', [])
         
         # Show AI suggestions if available
         if has_suggestions:
@@ -922,7 +937,7 @@ def _render_summary_section():
                             # Replace in sentences
                             for j, sentence in enumerate(sentences):
                                 if sentence == suggestion['original']:
-                                    st.session_state.resume_data['summary']['sentences'][j] = suggestion['repositioned']
+                                    st.session_state.current_editing_data['summary']['sentences'][j] = suggestion['repositioned']
                                     st.success(f"✅ Applied suggestion!")
                                     st.rerun()
                     st.caption(suggestion.get('reasoning', ''))
@@ -932,11 +947,11 @@ def _render_summary_section():
         current_summary = " ".join(sentences) if sentences else ""
         edited_summary = st.text_area("Summary:", value=current_summary, height=100, key="md_summary_edit")
         
-        # Update summary in resume data
+        # Update summary in editing data
         if edited_summary != current_summary:
             # Split back into sentences
             new_sentences = [s.strip() for s in edited_summary.split('.') if s.strip()]
-            st.session_state.resume_data['summary'] = {'sentences': [s + '.' for s in new_sentences if s]}
+            st.session_state.current_editing_data['summary'] = {'sentences': [s + '.' for s in new_sentences if s]}
 
 def _render_experience_section():
     """Render experience section with AI suggestions"""
@@ -959,7 +974,7 @@ def _render_experience_section():
     with st.container():
         st.subheader(section_header)
         
-        experiences = st.session_state.resume_data.get('experience', [])
+        experiences = st.session_state.current_editing_data.get('experience', [])
         
         for exp_idx, exp in enumerate(experiences):
             exp_has_suggestions = exp_idx in exp_suggestions_map
@@ -1002,30 +1017,30 @@ def _render_experience_section():
                     with col1:
                         new_acc = st.text_area(f"Accomplishment {acc_idx+1}:", value=acc, height=60, key=f"md_exp_acc_{exp_idx}_{acc_idx}")
                         if new_acc != acc:
-                            st.session_state.resume_data['experience'][exp_idx]['accomplishments'][acc_idx] = new_acc
+                            st.session_state.current_editing_data['experience'][exp_idx]['accomplishments'][acc_idx] = new_acc
                     with col2:
                         st.write("")  # spacer
                         if st.button("🗑️", key=f"md_delete_accomplishment_{exp_idx}_{acc_idx}", help="Delete this accomplishment"):
                             # Remove the accomplishment and refresh
-                            st.session_state.resume_data['experience'][exp_idx]['accomplishments'].pop(acc_idx)
+                            st.session_state.current_editing_data['experience'][exp_idx]['accomplishments'].pop(acc_idx)
                             st.rerun()
 
 def _apply_experience_suggestion(exp_idx: int, suggestion: dict):
-    """Apply an experience suggestion to the resume data"""
-    exp = st.session_state.resume_data['experience'][exp_idx]
+    """Apply an experience suggestion to the editing data"""
+    exp = st.session_state.current_editing_data['experience'][exp_idx]
     
     # Find and replace in accomplishments
     if 'accomplishments' in exp:
         for i, acc in enumerate(exp['accomplishments']):
             if acc == suggestion['original']:
-                st.session_state.resume_data['experience'][exp_idx]['accomplishments'][i] = suggestion['repositioned']
+                st.session_state.current_editing_data['experience'][exp_idx]['accomplishments'][i] = suggestion['repositioned']
                 return
     
     # Find and replace in role summaries
     if 'role_summaries' in exp:
         for i, role in enumerate(exp['role_summaries']):
             if role == suggestion['original']:
-                st.session_state.resume_data['experience'][exp_idx]['role_summaries'][i] = suggestion['repositioned']
+                st.session_state.current_editing_data['experience'][exp_idx]['role_summaries'][i] = suggestion['repositioned']
                 return
 
 def _render_projects_section():
@@ -1033,11 +1048,15 @@ def _render_projects_section():
     with st.container():
         st.subheader("🚀 Projects")
         
-        projects = st.session_state.resume_data.get('projects', [])
+        projects = st.session_state.current_editing_data.get('projects', [])
         
         for proj_idx, proj in enumerate(projects):
             with st.expander(f"Project: {proj.get('name', 'Unnamed')}", expanded=False):
-                st.text_input("Project Name:", value=proj.get('name', ''), key=f"md_proj_name_{proj_idx}")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.text_input("Project Name:", value=proj.get('name', ''), key=f"md_proj_name_{proj_idx}")
+                with col2:
+                    st.text_input("Project URL:", value=proj.get('url', ''), key=f"md_proj_url_{proj_idx}")
                 
                 descriptions = proj.get('descriptions', [])
                 for desc_idx, desc in enumerate(descriptions):
@@ -1045,12 +1064,12 @@ def _render_projects_section():
                     with col1:
                         new_desc = st.text_area(f"Description {desc_idx+1}:", value=desc, height=60, key=f"md_proj_desc_{proj_idx}_{desc_idx}")
                         if new_desc != desc:
-                            st.session_state.resume_data['projects'][proj_idx]['descriptions'][desc_idx] = new_desc
+                            st.session_state.current_editing_data['projects'][proj_idx]['descriptions'][desc_idx] = new_desc
                     with col2:
                         st.write("")  # spacer
                         if st.button("🗑️", key=f"md_delete_proj_desc_{proj_idx}_{desc_idx}", help="Delete this description"):
                             # Remove the project description and refresh
-                            st.session_state.resume_data['projects'][proj_idx]['descriptions'].pop(desc_idx)
+                            st.session_state.current_editing_data['projects'][proj_idx]['descriptions'].pop(desc_idx)
                             st.rerun()
 
 def _render_skills_section():
@@ -1058,7 +1077,7 @@ def _render_skills_section():
     with st.container():
         st.subheader("🛠️ Skills")
         
-        skills = st.session_state.resume_data.get('skills', {})
+        skills = st.session_state.current_editing_data.get('skills', {})
         
         for category, skill_list in skills.items():
             if skill_list:
@@ -1066,22 +1085,23 @@ def _render_skills_section():
                 current_skills = ', '.join(skill_list)
                 new_skills = st.text_input(f"{category_name}:", value=current_skills, key=f"md_skills_{category}")
                 if new_skills != current_skills:
-                    st.session_state.resume_data['skills'][category] = [s.strip() for s in new_skills.split(',') if s.strip()]
+                    st.session_state.current_editing_data['skills'][category] = [s.strip() for s in new_skills.split(',') if s.strip()]
 
 def _render_education_section():
     """Render education section"""
     with st.container():
         st.subheader("🎓 Education")
         
-        education = st.session_state.resume_data.get('education', [])
+        education = st.session_state.current_editing_data.get('education', [])
         
         for edu_idx, edu in enumerate(education):
             with st.expander(f"Education: {edu.get('degree', 'Degree')}", expanded=False):
                 st.text_input("Degree:", value=edu.get('degree', ''), key=f"md_edu_deg_{edu_idx}")
+                st.text_input("Specialization:", value=edu.get('specialization', ''), key=f"md_edu_spec_{edu_idx}")
                 st.text_input("Institution:", value=edu.get('institution', ''), key=f"md_edu_inst_{edu_idx}")
 
 def _generate_markdown_from_sections():
-    """Generate complete markdown from current resume data"""
+    """Generate complete markdown from current editing data"""
     markdown = ""
     
     # Contact
@@ -1740,23 +1760,23 @@ def _render_step3_generate_matched_resume():
                     # Display selected content
                     if selected_content.get('summary'):
                         st.write("**Selected Summary Sentences:**")
-                        for sentence in selected_content['summary'].get('selected_sentences', []):
+                        for sentence in selected_content['summary'].get('sentences', []):
                             st.write(f"• {sentence}")
                     
                     if selected_content.get('experience'):
                         st.write("**Selected Experience:**")
                         for exp in selected_content['experience']:
                             st.write(f"**{exp.get('position')} at {exp.get('company')}**")
-                            if exp.get('selected_accomplishments'):
-                                for acc in exp['selected_accomplishments'][:3]:  # Show first 3
+                            if exp.get('accomplishments'):
+                                for acc in exp['accomplishments'][:3]:  # Show first 3
                                     st.write(f"  • {acc}")
                     
                     if selected_content.get('projects'):
                         st.write("**Selected Projects:**")
                         for proj in selected_content['projects']:
                             st.write(f"**{proj.get('name')}**")
-                            if proj.get('selected_descriptions'):
-                                for desc in proj['selected_descriptions'][:2]:  # Show first 2
+                            if proj.get('descriptions'):
+                                for desc in proj['descriptions'][:2]:  # Show first 2
                                     st.write(f"  • {desc}")
                 
                 # Reset workflow for next use
