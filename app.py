@@ -578,6 +578,28 @@ def final_markdown_editor_page():
     st.divider()
     st.info("👉 Go to 'Export PDF' to generate your final resume")
 
+def _generate_custom_filename():
+    """Generate custom PDF filename: {Name}_{Company}_{Role}.pdf"""
+    import re
+    
+    # Get candidate name
+    name = st.session_state.resume_data.get('contact', {}).get('name', 'Resume')
+    
+    # Get company and role from session state (if available from job matching)
+    company = st.session_state.get('target_company', 'Company')
+    role = st.session_state.get('target_job_title', 'Role')
+    
+    # Clean up the strings for filename (remove special characters)
+    def clean_for_filename(text):
+        # Replace spaces with underscores and remove special characters
+        return re.sub(r'[^\w\s-]', '', text).strip().replace(' ', '_')
+    
+    clean_name = clean_for_filename(name)
+    clean_company = clean_for_filename(company)
+    clean_role = clean_for_filename(role)
+    
+    return f"{clean_name}_{clean_company}_{clean_role}.pdf"
+
 def export_pdf_page():
     
     if not st.session_state.resume_data:
@@ -667,8 +689,8 @@ def export_pdf_page():
                             'pdf'
                         )
                         
-                        # Filename based on theme
-                        filename = f"resume_{selected_theme}_{selected_engine}.pdf"
+                        # Generate custom filename
+                        filename = _generate_custom_filename()
                         
                         st.download_button(
                             label="⬇️ Download PDF",
@@ -686,50 +708,12 @@ def export_pdf_page():
         # Additional export options
         st.subheader("📋 Additional Options")
         
-        col3, col4 = st.columns(2)
-        
-        with col3:
-            if st.button("📄 Export All Themes", help="Generate PDFs with multiple themes"):
-                with st.spinner("Generating multiple themes..."):
-                    try:
-                        resume_data = st.session_state.selected_content or st.session_state.resume_data
-                        
-                        # Generate all available themes
-                        available_themes = [
-                            ('json_resume', 'elegant'),
-                            ('json_resume', 'kendall'),
-                            ('typst', 'modern-cv')
-                        ]
-                        
-                        for engine, theme in available_themes:
-                            try:
-                                pdf_bytes = theme_exporter.export_resume(
-                                    resume_data, engine, theme, 'pdf'
-                                )
-                                
-                                filename = f"resume_{theme}_{engine}.pdf"
-                                st.download_button(
-                                    label=f"⬇️ {engine.title()} - {theme.title()}",
-                                    data=pdf_bytes,
-                                    file_name=filename,
-                                    mime="application/pdf",
-                                    key=f"download_{engine}_{theme}"
-                                )
-                            except Exception as e:
-                                st.warning(f"Could not generate {engine} - {theme}: {str(e)}")
-                        
-                        st.success("✅ Multiple themes generated!")
-                        
-                    except Exception as e:
-                        st.error(f"Error generating multiple themes: {str(e)}")
-        
-        with col4:
-            if st.button("📋 Copy Markdown"):
-                if st.session_state.final_markdown:
-                    st.code(st.session_state.final_markdown, language="markdown")
-                    st.info("Copy the markdown above to use elsewhere")
-                else:
-                    st.warning("No markdown content available. Please complete job matching first.")
+        if st.button("📋 Copy Markdown"):
+            if st.session_state.final_markdown:
+                st.code(st.session_state.final_markdown, language="markdown")
+                st.info("Copy the markdown above to use elsewhere")
+            else:
+                st.warning("No markdown content available. Please complete job matching first.")
     
     except Exception as e:
         st.error(f"Theme system error: {str(e)}")
@@ -1130,10 +1114,15 @@ def _render_step1_enhance_content():
     st.markdown("*AI will improve the language and impact of all your resume content*")
     
     # Job info input for context
-    company_name = st.text_input("Company Name:", placeholder="e.g., Google, Stripe, Microsoft", key="step1_company")
+    col1, col2 = st.columns(2)
+    with col1:
+        company_name = st.text_input("Company Name:", placeholder="e.g., Google, Stripe, Microsoft", key="step1_company")
+    with col2:
+        job_title = st.text_input("Job Title/Designation:", placeholder="e.g., Software Engineer, Data Scientist", key="step1_job_title")
+    
     job_description = st.text_area("Job Description:", placeholder="Paste the job posting here...", height=150, key="step1_job_desc")
     
-    if company_name.strip() and job_description.strip():
+    if company_name.strip() and job_title.strip() and job_description.strip():
         if st.button("🚀 Enhance All Content", type="primary"):
             # Create progress tracking containers
             progress_container = st.container()
@@ -1146,6 +1135,7 @@ def _render_step1_enhance_content():
                 
                 # Store job info for later steps
                 st.session_state.target_company = company_name
+                st.session_state.target_job_title = job_title
                 st.session_state.target_job_description = job_description
                 
                 status_text.text("🏢 Analyzing company DNA...")
@@ -1207,7 +1197,7 @@ def _render_step1_enhance_content():
                 st.info("You can continue with original content")
     
     else:
-        st.info("👆 Enter company name and job description to start AI enhancement")
+        st.info("👆 Enter company name, job title, and job description to start AI enhancement")
 
 def _generate_enhanced_content_for_all_sections(resume_data, job_description, company_analysis, 
                                                progress_bar=None, status_text=None, logs_container=None, total_items=0):
