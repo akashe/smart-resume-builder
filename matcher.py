@@ -438,14 +438,14 @@ class JobMatcher:
                     )
                     selected_exp['role_summaries'] = [best_role_summary] if best_role_summary else []
             
-            # Select best accomplishments (top 3-4)
+            # Select best accomplishments (up to 6)
             accomplishments = exp.get('accomplishments', [])
             if accomplishments:
-                if len(accomplishments) <= 3:
+                if len(accomplishments) <= 2:
                     selected_exp['accomplishments'] = accomplishments
                 else:
                     selected_exp['accomplishments'] = self._ai_select_multiple_options(
-                        accomplishments, job_description, job_keywords, "accomplishments", max_selections=4
+                        accomplishments, job_description, job_keywords, "accomplishments", max_selections=6
                     )
             
             selected_experiences.append(selected_exp)
@@ -534,7 +534,13 @@ class JobMatcher:
             return options
         
         prompt = f"""
-        Select the {max_selections} BEST {content_type} that match this job.
+        Select the {max_selections} BEST {content_type} that match this job description.
+        
+        IMPORTANT RULES:
+        1. Choose accomplishments that are MOST RELEVANT to the job requirements
+        2. AVOID selecting accomplishments that describe the same achievement in different ways 
+        3. Prioritize DIVERSE accomplishments that showcase different skills and impacts
+        4. Select accomplishments with QUANTIFIABLE results when available
         
         Job Keywords: {', '.join(job_keywords)}
         
@@ -549,7 +555,7 @@ class JobMatcher:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
-                max_tokens=50
+                max_tokens=200
             )
             
             selection_text = response.choices[0].message.content.strip()
