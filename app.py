@@ -12,7 +12,7 @@ from theme_exporter import ThemeExporter
 from company_analyzer import CompanyAnalyzer
 from positioning_coach import PositioningCoach
 from company_researcher import CompanyResearcher
-import sqlite3
+from db_operations import *
 
 # Initialize session state
 if 'resume_data' not in st.session_state:
@@ -31,20 +31,6 @@ if 'positioning_suggestions' not in st.session_state:
     st.session_state.positioning_suggestions = None
 if 'show_final_editor' not in st.session_state:
     st.session_state.show_final_editor = False
-
-def init_database():
-    """Initialize SQLite database for storing resume data"""
-    conn = sqlite3.connect('resume_data.db')
-    c = conn.cursor()
-    
-    c.execute('''CREATE TABLE IF NOT EXISTS resume_sections
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  section_name TEXT,
-                  content TEXT,
-                  bullet_points TEXT)''')
-    
-    conn.commit()
-    conn.close()
 
 def main():
     st.set_page_config(
@@ -93,6 +79,19 @@ def main():
 
 def upload_resume_page():
     st.header("📤 Upload and Parse Resume")
+
+    # Load from DB option
+    profiles = load_resume_profiles()
+
+    if profiles:
+        profile_options = {f"{name} (ID: {pid})": pid for pid, name in profiles}
+        selected_profile = st.selectbox("Or load a saved profile:", ["Dont want to load a saved profile"] + list(profile_options.keys()))
+        if selected_profile != "Dont want to load a saved profile":
+            profile_id = profile_options[selected_profile]
+            resume_data = get_resume_by_id(profile_id)
+            st.session_state.resume_data = resume_data
+            st.success(f"Loaded profile: {selected_profile}")
+            st.stop()
     
     uploaded_file = st.file_uploader(
         "Choose a resume file",
@@ -227,17 +226,25 @@ def edit_sections_page():
         if 'summary' not in resume_data:
             resume_data['summary'] = {'sentences': []}
         
-        sentences = resume_data['summary'].get('sentences', [])
+        sentences = st.session_state.resume_data['summary'].get('sentences', [])
         
         # Edit existing sentences
         updated_sentences = []
         for i, sentence in enumerate(sentences):
-            updated_sentence = st.text_area(
-                f"Sentence {i+1}:",
-                value=sentence,
-                height=60,
-                key=f"summary_sentence_{i}"
-            )
+            col1, col2 = st.columns([5, 1])
+            with col1:
+                updated_sentence = st.text_area(
+                    f"Sentence {i+1}:",
+                    value=sentence,
+                    height=60,
+                    key=f"summary_sentence_{i}"
+                )
+            with col2:
+                st.write("")  # spacer
+                if st.button("🗑️", key=f"delete_summary_{i}", help="Delete this sentence"):
+                    # Remove the sentence and refresh
+                    st.session_state.resume_data['summary']['sentences'].pop(i)
+                    st.rerun()
             if updated_sentence.strip():
                 updated_sentences.append(updated_sentence.strip())
         
@@ -248,7 +255,8 @@ def edit_sections_page():
             if new_sentence.strip():
                 updated_sentences.append(new_sentence.strip())
         
-        resume_data['summary']['sentences'] = updated_sentences
+        # Update session state immediately
+        st.session_state.resume_data['summary']['sentences'] = updated_sentences
     
     with tab2:
         st.subheader("Work Experience")
@@ -256,7 +264,7 @@ def edit_sections_page():
         if 'experience' not in resume_data:
             resume_data['experience'] = []
         
-        experiences = resume_data['experience']
+        experiences = st.session_state.resume_data['experience']
         
         for exp_idx, exp in enumerate(experiences):
             with st.expander(f"📍 {exp.get('position', 'Position')} at {exp.get('company', 'Company')}", expanded=True):
@@ -273,7 +281,15 @@ def edit_sections_page():
                 role_summaries = exp.get('role_summaries', [])
                 updated_summaries = []
                 for i, summary in enumerate(role_summaries):
-                    updated_summary = st.text_area(f"Role Summary {i+1}:", value=summary, height=50, key=f"exp_summary_{exp_idx}_{i}")
+                    col1, col2 = st.columns([5, 1])
+                    with col1:
+                        updated_summary = st.text_area(f"Role Summary {i+1}:", value=summary, height=50, key=f"exp_summary_{exp_idx}_{i}")
+                    with col2:
+                        st.write("")  # spacer
+                        if st.button("🗑️", key=f"delete_role_summary_{exp_idx}_{i}", help="Delete this role summary"):
+                            # Remove the role summary and refresh
+                            st.session_state.resume_data['experience'][exp_idx]['role_summaries'].pop(i)
+                            st.rerun()
                     if updated_summary.strip():
                         updated_summaries.append(updated_summary.strip())
                 
@@ -283,13 +299,22 @@ def edit_sections_page():
                     new_summary = st.text_area(f"New Role Summary {i+1}:", height=50, key=f"new_exp_summary_{exp_idx}_{i}")
                     if new_summary.strip():
                         updated_summaries.append(new_summary.strip())
-                exp['role_summaries'] = updated_summaries
+                # Update session state immediately
+                st.session_state.resume_data['experience'][exp_idx]['role_summaries'] = updated_summaries
                 
                 st.markdown("**Accomplishments & Responsibilities:**")
                 accomplishments = exp.get('accomplishments', [])
                 updated_accomplishments = []
                 for i, acc in enumerate(accomplishments):
-                    updated_acc = st.text_area(f"Accomplishment {i+1}:", value=acc, height=60, key=f"exp_acc_{exp_idx}_{i}")
+                    col1, col2 = st.columns([5, 1])
+                    with col1:
+                        updated_acc = st.text_area(f"Accomplishment {i+1}:", value=acc, height=60, key=f"exp_acc_{exp_idx}_{i}")
+                    with col2:
+                        st.write("")  # spacer
+                        if st.button("🗑️", key=f"delete_accomplishment_{exp_idx}_{i}", help="Delete this accomplishment"):
+                            # Remove the accomplishment and refresh
+                            st.session_state.resume_data['experience'][exp_idx]['accomplishments'].pop(i)
+                            st.rerun()
                     if updated_acc.strip():
                         updated_accomplishments.append(updated_acc.strip())
                 
@@ -299,7 +324,8 @@ def edit_sections_page():
                     new_acc = st.text_area(f"New Accomplishment {i+1}:", height=60, key=f"new_exp_acc_{exp_idx}_{i}")
                     if new_acc.strip():
                         updated_accomplishments.append(new_acc.strip())
-                exp['accomplishments'] = updated_accomplishments
+                # Update session state immediately
+                st.session_state.resume_data['experience'][exp_idx]['accomplishments'] = updated_accomplishments
         
         # Add new experience
         if st.button("➕ Add New Experience"):
@@ -316,7 +342,7 @@ def edit_sections_page():
         if 'projects' not in resume_data:
             resume_data['projects'] = []
         
-        projects = resume_data['projects']
+        projects = st.session_state.resume_data['projects']
         
         for proj_idx, proj in enumerate(projects):
             with st.expander(f"🚀 {proj.get('name', 'Project Name')}", expanded=True):
@@ -331,7 +357,15 @@ def edit_sections_page():
                 descriptions = proj.get('descriptions', [])
                 updated_descriptions = []
                 for i, desc in enumerate(descriptions):
-                    updated_desc = st.text_area(f"Description {i+1}:", value=desc, height=60, key=f"proj_desc_{proj_idx}_{i}")
+                    col1, col2 = st.columns([5, 1])
+                    with col1:
+                        updated_desc = st.text_area(f"Description {i+1}:", value=desc, height=60, key=f"proj_desc_{proj_idx}_{i}")
+                    with col2:
+                        st.write("")  # spacer
+                        if st.button("🗑️", key=f"delete_project_desc_{proj_idx}_{i}", help="Delete this description"):
+                            # Remove the project description and refresh
+                            st.session_state.resume_data['projects'][proj_idx]['descriptions'].pop(i)
+                            st.rerun()
                     if updated_desc.strip():
                         updated_descriptions.append(updated_desc.strip())
                 
@@ -341,7 +375,8 @@ def edit_sections_page():
                     new_desc = st.text_area(f"New Description {i+1}:", height=60, key=f"new_proj_desc_{proj_idx}_{i}")
                     if new_desc.strip():
                         updated_descriptions.append(new_desc.strip())
-                proj['descriptions'] = updated_descriptions
+                # Update session state immediately
+                st.session_state.resume_data['projects'][proj_idx]['descriptions'] = updated_descriptions
                 
                 # Technologies
                 tech_list = ', '.join(proj.get('technologies', []))
@@ -386,9 +421,13 @@ def edit_sections_page():
                     edu['location'] = st.text_input("Location:", value=edu.get('location', ''), key=f"edu_loc_{edu_idx}")
     
     # Save button
-    if st.button("💾 Save All Changes", type="primary"):
-        st.session_state.resume_data = resume_data
-        st.success("✅ All changes saved!")
+    if st.button("💾 Save Changes to DB", type="primary"):
+        # st.session_state.resume_data = resume_data
+        try:
+            save_resume_to_db(st.session_state.resume_data)
+            st.success("✅ All changes saved to session and database!")
+        except Exception as e:
+            st.error(f"Session saved, but database save failed: {str(e)}")
         st.rerun()
     
     st.info("👉 Next Steps: Go to 'Job Matching' → Complete company analysis → Use 'Edit Resume Sections' for AI suggestions")
@@ -976,9 +1015,17 @@ def _render_experience_section():
                 # Edit accomplishments
                 accomplishments = exp.get('accomplishments', [])
                 for acc_idx, acc in enumerate(accomplishments):
-                    new_acc = st.text_area(f"Accomplishment {acc_idx+1}:", value=acc, height=60, key=f"md_exp_acc_{exp_idx}_{acc_idx}")
-                    if new_acc != acc:
-                        st.session_state.resume_data['experience'][exp_idx]['accomplishments'][acc_idx] = new_acc
+                    col1, col2 = st.columns([5, 1])
+                    with col1:
+                        new_acc = st.text_area(f"Accomplishment {acc_idx+1}:", value=acc, height=60, key=f"md_exp_acc_{exp_idx}_{acc_idx}")
+                        if new_acc != acc:
+                            st.session_state.resume_data['experience'][exp_idx]['accomplishments'][acc_idx] = new_acc
+                    with col2:
+                        st.write("")  # spacer
+                        if st.button("🗑️", key=f"md_delete_accomplishment_{exp_idx}_{acc_idx}", help="Delete this accomplishment"):
+                            # Remove the accomplishment and refresh
+                            st.session_state.resume_data['experience'][exp_idx]['accomplishments'].pop(acc_idx)
+                            st.rerun()
 
 def _apply_experience_suggestion(exp_idx: int, suggestion: dict):
     """Apply an experience suggestion to the resume data"""
@@ -1010,10 +1057,18 @@ def _render_projects_section():
                 st.text_input("Project Name:", value=proj.get('name', ''), key=f"md_proj_name_{proj_idx}")
                 
                 descriptions = proj.get('descriptions', [])
-                if descriptions:
-                    new_desc = st.text_area("Description:", value=descriptions[0], height=60, key=f"md_proj_desc_{proj_idx}")
-                    if new_desc != descriptions[0]:
-                        st.session_state.resume_data['projects'][proj_idx]['descriptions'][0] = new_desc
+                for desc_idx, desc in enumerate(descriptions):
+                    col1, col2 = st.columns([5, 1])
+                    with col1:
+                        new_desc = st.text_area(f"Description {desc_idx+1}:", value=desc, height=60, key=f"md_proj_desc_{proj_idx}_{desc_idx}")
+                        if new_desc != desc:
+                            st.session_state.resume_data['projects'][proj_idx]['descriptions'][desc_idx] = new_desc
+                    with col2:
+                        st.write("")  # spacer
+                        if st.button("🗑️", key=f"md_delete_proj_desc_{proj_idx}_{desc_idx}", help="Delete this description"):
+                            # Remove the project description and refresh
+                            st.session_state.resume_data['projects'][proj_idx]['descriptions'].pop(desc_idx)
+                            st.rerun()
 
 def _render_skills_section():
     """Render skills section"""
