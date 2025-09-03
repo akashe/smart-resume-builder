@@ -228,8 +228,7 @@ def edit_sections_page():
         
         sentences = st.session_state.resume_data['summary'].get('sentences', [])
         
-        # Edit existing sentences
-        updated_sentences = []
+        # Edit existing sentences - update session state directly
         for i, sentence in enumerate(sentences):
             col1, col2 = st.columns([5, 1])
             with col1:
@@ -239,24 +238,20 @@ def edit_sections_page():
                     height=60,
                     key=f"summary_sentence_{i}"
                 )
+                # Update session state immediately on change
+                if updated_sentence != sentence:
+                    st.session_state.resume_data['summary']['sentences'][i] = updated_sentence
             with col2:
                 st.write("")  # spacer
                 if st.button("🗑️", key=f"delete_summary_{i}", help="Delete this sentence"):
                     # Remove the sentence and refresh
                     st.session_state.resume_data['summary']['sentences'].pop(i)
                     st.rerun()
-            if updated_sentence.strip():
-                updated_sentences.append(updated_sentence.strip())
         
-        # Add new sentences
-        new_sentence_count = st.number_input("Add new sentences:", min_value=0, max_value=5, value=0, key="new_summary")
-        for i in range(new_sentence_count):
-            new_sentence = st.text_area(f"New Sentence {i+1}:", height=60, key=f"new_summary_{i}")
-            if new_sentence.strip():
-                updated_sentences.append(new_sentence.strip())
-        
-        # Update session state immediately
-        st.session_state.resume_data['summary']['sentences'] = updated_sentences
+        # Add new sentence
+        if st.button("➕ Add New Sentence", key="add_summary_btn"):
+            st.session_state.resume_data['summary']['sentences'].append("")
+            st.rerun()
     
     with tab2:
         st.subheader("Work Experience")
@@ -279,53 +274,45 @@ def edit_sections_page():
                 
                 st.markdown("**Role Summaries (different ways to describe the role):**")
                 role_summaries = exp.get('role_summaries', [])
-                updated_summaries = []
                 for i, summary in enumerate(role_summaries):
                     col1, col2 = st.columns([5, 1])
                     with col1:
                         updated_summary = st.text_area(f"Role Summary {i+1}:", value=summary, height=50, key=f"exp_summary_{exp_idx}_{i}")
+                        # Update session state immediately on change
+                        if updated_summary != summary:
+                            st.session_state.resume_data['experience'][exp_idx]['role_summaries'][i] = updated_summary
                     with col2:
                         st.write("")  # spacer
                         if st.button("🗑️", key=f"delete_role_summary_{exp_idx}_{i}", help="Delete this role summary"):
                             # Remove the role summary and refresh
                             st.session_state.resume_data['experience'][exp_idx]['role_summaries'].pop(i)
                             st.rerun()
-                    if updated_summary.strip():
-                        updated_summaries.append(updated_summary.strip())
                 
-                # Add new role summaries
-                new_summary_count = st.number_input("Add role summaries:", min_value=0, max_value=3, value=0, key=f"new_role_summary_{exp_idx}")
-                for i in range(new_summary_count):
-                    new_summary = st.text_area(f"New Role Summary {i+1}:", height=50, key=f"new_exp_summary_{exp_idx}_{i}")
-                    if new_summary.strip():
-                        updated_summaries.append(new_summary.strip())
-                # Update session state immediately
-                st.session_state.resume_data['experience'][exp_idx]['role_summaries'] = updated_summaries
+                # Add new role summary
+                if st.button("➕ Add Role Summary", key=f"add_role_summary_{exp_idx}"):
+                    st.session_state.resume_data['experience'][exp_idx]['role_summaries'].append("")
+                    st.rerun()
                 
                 st.markdown("**Accomplishments & Responsibilities:**")
                 accomplishments = exp.get('accomplishments', [])
-                updated_accomplishments = []
                 for i, acc in enumerate(accomplishments):
                     col1, col2 = st.columns([5, 1])
                     with col1:
                         updated_acc = st.text_area(f"Accomplishment {i+1}:", value=acc, height=60, key=f"exp_acc_{exp_idx}_{i}")
+                        # Update session state immediately on change
+                        if updated_acc != acc:
+                            st.session_state.resume_data['experience'][exp_idx]['accomplishments'][i] = updated_acc
                     with col2:
                         st.write("")  # spacer
                         if st.button("🗑️", key=f"delete_accomplishment_{exp_idx}_{i}", help="Delete this accomplishment"):
                             # Remove the accomplishment and refresh
                             st.session_state.resume_data['experience'][exp_idx]['accomplishments'].pop(i)
                             st.rerun()
-                    if updated_acc.strip():
-                        updated_accomplishments.append(updated_acc.strip())
                 
-                # Add new accomplishments
-                new_acc_count = st.number_input("Add accomplishments:", min_value=0, max_value=5, value=0, key=f"new_acc_{exp_idx}")
-                for i in range(new_acc_count):
-                    new_acc = st.text_area(f"New Accomplishment {i+1}:", height=60, key=f"new_exp_acc_{exp_idx}_{i}")
-                    if new_acc.strip():
-                        updated_accomplishments.append(new_acc.strip())
-                # Update session state immediately
-                st.session_state.resume_data['experience'][exp_idx]['accomplishments'] = updated_accomplishments
+                # Add new accomplishment
+                if st.button("➕ Add Accomplishment", key=f"add_accomplishment_{exp_idx}"):
+                    st.session_state.resume_data['experience'][exp_idx]['accomplishments'].append("")
+                    st.rerun()
         
         # Add new experience
         if st.button("➕ Add New Experience"):
@@ -355,28 +342,24 @@ def edit_sections_page():
                 
                 st.markdown("**Project Descriptions (different ways to describe it):**")
                 descriptions = proj.get('descriptions', [])
-                updated_descriptions = []
                 for i, desc in enumerate(descriptions):
                     col1, col2 = st.columns([5, 1])
                     with col1:
                         updated_desc = st.text_area(f"Description {i+1}:", value=desc, height=60, key=f"proj_desc_{proj_idx}_{i}")
+                        # Update session state immediately on change
+                        if updated_desc != desc:
+                            st.session_state.resume_data['projects'][proj_idx]['descriptions'][i] = updated_desc
                     with col2:
                         st.write("")  # spacer
                         if st.button("🗑️", key=f"delete_project_desc_{proj_idx}_{i}", help="Delete this description"):
                             # Remove the project description and refresh
                             st.session_state.resume_data['projects'][proj_idx]['descriptions'].pop(i)
                             st.rerun()
-                    if updated_desc.strip():
-                        updated_descriptions.append(updated_desc.strip())
                 
-                # Add new descriptions
-                new_desc_count = st.number_input("Add descriptions:", min_value=0, max_value=3, value=0, key=f"new_desc_{proj_idx}")
-                for i in range(new_desc_count):
-                    new_desc = st.text_area(f"New Description {i+1}:", height=60, key=f"new_proj_desc_{proj_idx}_{i}")
-                    if new_desc.strip():
-                        updated_descriptions.append(new_desc.strip())
-                # Update session state immediately
-                st.session_state.resume_data['projects'][proj_idx]['descriptions'] = updated_descriptions
+                # Add new description
+                if st.button("➕ Add Description", key=f"add_description_{proj_idx}"):
+                    st.session_state.resume_data['projects'][proj_idx]['descriptions'].append("")
+                    st.rerun()
                 
                 # Technologies
                 tech_list = ', '.join(proj.get('technologies', []))
