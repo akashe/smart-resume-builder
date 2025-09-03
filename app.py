@@ -27,8 +27,6 @@ if 'selected_theme' not in st.session_state:
     st.session_state.selected_theme = ('json_resume', 'professional')
 if 'company_analysis' not in st.session_state:
     st.session_state.company_analysis = None
-if 'positioning_suggestions' not in st.session_state:
-    st.session_state.positioning_suggestions = None
 if 'show_final_editor' not in st.session_state:
     st.session_state.show_final_editor = False
 
@@ -52,8 +50,7 @@ def main():
         "2. Edit & Add Information", 
         "3. Job Matching",
         "4. Edit Resume Sections",
-        "5. Final Markdown Editor",
-        "6. Export PDF"
+        "5. Export PDF"
     ]
     
     page = st.sidebar.radio("Go to:", pages)
@@ -72,9 +69,7 @@ def main():
         job_matching_page()
     elif page == "4. Edit Resume Sections":
         edit_markdown_page()
-    elif page == "5. Final Markdown Editor":
-        final_markdown_editor_page()
-    elif page == "6. Export PDF":
+    elif page == "5. Export PDF":
         export_pdf_page()
 
 def upload_resume_page():
@@ -471,23 +466,6 @@ def edit_markdown_page():
         st.info("📋 **Editing Original Resume Data** - Complete resume content")  
         st.session_state.current_editing_data = st.session_state.resume_data
     
-    # Initialize markdown sections in session state if not exists
-    if 'markdown_sections' not in st.session_state:
-        st.session_state.markdown_sections = _generate_initial_markdown_sections()
-    
-    # Show suggestion stats
-    suggestion_count = 0
-    if st.session_state.positioning_suggestions:
-        if st.session_state.positioning_suggestions.get('experience_translations'):
-            suggestion_count += sum(len(exp.get('suggestions', [])) for exp in st.session_state.positioning_suggestions['experience_translations'])
-        if st.session_state.positioning_suggestions.get('summary_recommendations'):
-            suggestion_count += len(st.session_state.positioning_suggestions['summary_recommendations'])
-        
-        if suggestion_count > 0:
-            st.success(f"✨ **{suggestion_count} AI suggestions available** - Look for highlighted sections below")
-        else:
-            st.info("💡 Complete Company Intelligence analysis to get positioning suggestions")
-    
     # Section-based editing
     _render_contact_section()
     _render_summary_section()
@@ -508,75 +486,6 @@ def edit_markdown_page():
     with st.expander("👀 Preview Final Resume", expanded=True):
         st.markdown(final_markdown)
     
-    # Option to go to final editing
-    if st.button("📝 Make Final Edits", type="primary"):
-        st.session_state.show_final_editor = True
-        st.rerun()
-
-def final_markdown_editor_page():
-    st.header("📝 Final Markdown Editor")
-    
-    if not st.session_state.final_markdown:
-        st.warning("Please complete resume section editing first!")
-        return
-    
-    st.markdown("*Make final adjustments to your complete resume markdown*")
-    
-    # Show applied suggestions summary
-    if st.session_state.positioning_suggestions:
-        applied_count = 0  # This would track actually applied suggestions
-        st.info(f"✨ **AI-Enhanced Resume** - Includes positioning optimizations for your target company")
-    
-    st.subheader("Complete Resume Markdown")
-    
-    # Use streamlit-ace for better editing experience
-    try:
-        from streamlit_ace import st_ace
-        
-        edited_markdown = st_ace(
-            value=st.session_state.final_markdown,
-            language='markdown',
-            theme='github',
-            height=600,
-            auto_update=False,
-            key="final_markdown_editor"
-        )
-        
-    except ImportError:
-        # Fallback to text area if streamlit-ace is not available
-        edited_markdown = st.text_area(
-            "Edit your complete resume markdown:",
-            value=st.session_state.final_markdown,
-            height=600,
-            key="final_markdown_textarea"
-        )
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        if st.button("💾 Save Changes", type="primary"):
-            st.session_state.final_markdown = edited_markdown
-            st.success("✅ Final markdown saved!")
-    
-    with col2:
-        if st.button("👁️ Preview"):
-            st.session_state.show_preview = not st.session_state.get('show_preview', False)
-    
-    with col3:
-        if st.button("🔄 Reset to Sections"):
-            # Regenerate from resume data
-            st.session_state.final_markdown = _generate_markdown_from_sections()
-            st.success("✅ Reset to section-based content!")
-            st.rerun()
-    
-    # Show preview if requested
-    if st.session_state.get('show_preview', False):
-        st.divider()
-        st.subheader("📄 Preview")
-        st.markdown(edited_markdown)
-    
-    st.divider()
-    st.info("👉 Go to 'Export PDF' to generate your final resume")
 
 def _generate_custom_filename():
     """Generate custom PDF filename: {Name}_{Company}_{Role}.pdf"""
@@ -602,15 +511,13 @@ def _generate_custom_filename():
 
 def export_pdf_page():
     
-    if not st.session_state.resume_data:
-        st.warning("Please upload and parse a resume first!")
+    if not st.session_state.selected_content:
+        st.warning("Please create a job matched resume first!")
         return
     
-    # Show what content will be used
-    if st.session_state.final_markdown:
-        st.success("✅ **Using Final Edited Markdown** - Your latest changes from Final Markdown Editor")
-    elif st.session_state.selected_content:
-        st.info("📊 **Using Matched Resume Content** - AI-selected content for your target job")
+
+    if st.session_state.selected_content:
+        st.info("📊 **Using Matched Resume Content** - AI-selected content for your pdf")
     else:
         st.info("📋 **Using Original Resume Data** - Complete parsed resume")
     
@@ -645,75 +552,42 @@ def export_pdf_page():
         theme_info = theme_exporter.get_theme_info(selected_engine, selected_theme)
         if theme_info:
             st.info(f"📝 {theme_info}")
-        
-        # Preview section (only for JSON Resume themes)
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            if selected_engine == 'json_resume':
-                if st.button("👁️ Preview Theme", help="Generate HTML preview"):
-                    with st.spinner("Generating preview..."):
-                        try:
-                            html_preview = theme_exporter.preview_theme(
-                                st.session_state.resume_data, 
-                                selected_engine, 
-                                selected_theme
-                            )
-                            
-                            # Display preview in expander
-                            with st.expander("Theme Preview", expanded=True):
-                                st.components.v1.html(html_preview, height=400, scrolling=True)
-                                
-                        except Exception as e:
-                            st.error(f"Preview error: {str(e)}")
-            else:
-                st.info("Preview available only for JSON Resume themes")
-        
-        with col2:
-            # Generate PDF button
-            if st.button("📄 Generate PDF", type="primary"):
-                with st.spinner(f"Generating PDF with {selected_display}..."):
-                    try:
-                        # Use final markdown if available, otherwise selected content or resume data
-                        if st.session_state.final_markdown:
-                            # Convert markdown back to resume data structure for theme export
-                            resume_data = st.session_state.resume_data  # Use original structure
-                            # Note: For now using resume data structure - could enhance to parse markdown
-                        else:
-                            resume_data = st.session_state.selected_content or st.session_state.resume_data
-                        
-                        pdf_bytes = theme_exporter.export_resume(
-                            resume_data,
-                            selected_engine,
-                            selected_theme,
-                            'pdf'
-                        )
-                        
-                        # Generate custom filename
-                        filename = _generate_custom_filename()
-                        
-                        st.download_button(
-                            label="⬇️ Download PDF",
-                            data=pdf_bytes,
-                            file_name=filename,
-                            mime="application/pdf"
-                        )
-                        
-                        st.success("✅ PDF generated successfully!")
-                        
-                    except Exception as e:
-                        st.error(f"Error generating PDF: {str(e)}")
-                        st.exception(e)
-        
-        # Additional export options
-        st.subheader("📋 Additional Options")
-        
-        if st.button("📋 Copy Markdown"):
-            if st.session_state.final_markdown:
-                st.code(st.session_state.final_markdown, language="markdown")
-                st.info("Copy the markdown above to use elsewhere")
-            else:
-                st.warning("No markdown content available. Please complete job matching first.")
+
+        # Generate PDF button
+        if st.button("📄 Generate PDF", type="primary"):
+            with st.spinner(f"Generating PDF with {selected_display}..."):
+                try:
+                    # # Use final markdown if available, otherwise selected content or resume data
+                    # if st.session_state.final_markdown:
+                    #     # Convert markdown back to resume data structure for theme export
+                    #     resume_data = st.session_state.resume_data  # Use original structure
+                    #     # Note: For now using resume data structure - could enhance to parse markdown
+                    # else:
+                    #     resume_data = st.session_state.selected_content or st.session_state.resume_data
+                    resume_data = st.session_state.selected_content or st.session_state.resume_data
+                    
+                    pdf_bytes = theme_exporter.export_resume(
+                        resume_data,
+                        selected_engine,
+                        selected_theme,
+                        'pdf'
+                    )
+                    
+                    # Generate custom filename
+                    filename = _generate_custom_filename()
+                    
+                    st.download_button(
+                        label="⬇️ Download PDF",
+                        data=pdf_bytes,
+                        file_name=filename,
+                        mime="application/pdf"
+                    )
+                    
+                    st.success("✅ PDF generated successfully!")
+                    
+                except Exception as e:
+                    st.error(f"Error generating PDF: {str(e)}")
+                    st.exception(e)
     
     except Exception as e:
         st.error(f"Theme system error: {str(e)}")
@@ -794,8 +668,8 @@ def _generate_experience_markdown():
         # Accomplishments
         if exp.get('accomplishments'):
             for acc in exp['accomplishments']:
-                markdown += f"• {acc}\n"
-            markdown += "\n"
+                markdown += f"• {acc}\n\n"
+            markdown += "\n\n"
     
     return markdown
 
@@ -892,9 +766,6 @@ def _render_summary_section():
     # Check for suggestions
     has_suggestions = False
     summary_suggestions = []
-    if st.session_state.positioning_suggestions:
-        summary_suggestions = st.session_state.positioning_suggestions.get('summary_recommendations', [])
-        has_suggestions = len(summary_suggestions) > 0
     
     # Section header with indicator
     section_header = "📝 Summary"
@@ -943,13 +814,6 @@ def _render_experience_section():
     # Check for suggestions
     has_suggestions = False
     exp_suggestions_map = {}
-    if st.session_state.positioning_suggestions:
-        exp_translations = st.session_state.positioning_suggestions.get('experience_translations', [])
-        for exp_suggestion in exp_translations:
-            exp_idx = exp_suggestion.get('experience_index')
-            if exp_idx is not None:
-                exp_suggestions_map[exp_idx] = exp_suggestion.get('suggestions', [])
-                has_suggestions = True
     
     section_header = "💼 Experience"
     if has_suggestions:
@@ -1758,7 +1622,7 @@ def _render_step3_generate_matched_resume():
                         for exp in selected_content['experience']:
                             st.write(f"**{exp.get('position')} at {exp.get('company')}**")
                             if exp.get('accomplishments'):
-                                for acc in exp['accomplishments'][:3]:  # Show first 3
+                                for acc in exp['accomplishments']:  # Show first 3
                                     st.write(f"  • {acc}")
                     
                     if selected_content.get('projects'):
@@ -1766,7 +1630,7 @@ def _render_step3_generate_matched_resume():
                         for proj in selected_content['projects']:
                             st.write(f"**{proj.get('name')}**")
                             if proj.get('descriptions'):
-                                for desc in proj['descriptions'][:2]:  # Show first 2
+                                for desc in proj['descriptions']:  # Show first 2
                                     st.write(f"  • {desc}")
                 
                 # Reset workflow for next use

@@ -260,7 +260,7 @@ class JobMatcher:
                 if exp.get('selected_accomplishments'):
                     for acc in exp['selected_accomplishments']:
                         markdown += f"• {acc}\n"
-                    markdown += "\n"
+                    markdown += "\n\n"
         
         # Skills from categorized structure
         if 'skills' in selected_content:
@@ -445,7 +445,7 @@ class JobMatcher:
                     selected_exp['accomplishments'] = accomplishments
                 else:
                     selected_exp['accomplishments'] = self._ai_select_multiple_options(
-                        accomplishments, job_description, job_keywords, "accomplishments", max_selections=6
+                        accomplishments, job_description, job_keywords, "accomplishments", max_selections=6, min_selections=2
                     )
             
             selected_experiences.append(selected_exp)
@@ -519,28 +519,30 @@ class JobMatcher:
             if 0 <= selection_num < len(options):
                 return options[selection_num]
             else:
-                return options[0]  # Fallback
+                print(f"Invalid selection number: {selection_num}")
+                return ["Error while selecting accomplishments. Please try again."]  # Fallback
                 
         except Exception as e:
             print(f"Error selecting best {content_type}: {e}")
-            return options[0]  # Fallback
+            return ["Error while selecting accomplishments. Please try again."]  # Fallback
     
-    def _ai_select_multiple_options(self, options: List[str], job_description: str, job_keywords: List[str], content_type: str, max_selections: int = 3) -> List[str]:
+    def _ai_select_multiple_options(self, options: List[str], job_description: str, job_keywords: List[str], content_type: str, max_selections: int = 6, min_selections: int=2) -> List[str]:
         """Use AI to select multiple best options from a list"""
         
         if not options:
             return []
-        if len(options) <= max_selections:
+        if len(options) <= min_selections:
             return options
         
         prompt = f"""
-        Select the {max_selections} BEST {content_type} that match this job description.
+        Select the BEST {content_type} that match this job description.
         
         IMPORTANT RULES:
         1. Choose accomplishments that are MOST RELEVANT to the job requirements
-        2. AVOID selecting accomplishments that describe the same achievement in different ways 
+        2. AVOID selecting accomplishments that describe the same achievement in different ways. Same achievements talk about the same result and same technology being used.
         3. Prioritize DIVERSE accomplishments that showcase different skills and impacts
         4. Select accomplishments with QUANTIFIABLE results when available
+        5. Select between {min_selections} and {max_selections} accomplishments
         
         Job Keywords: {', '.join(job_keywords)}
         
@@ -563,10 +565,11 @@ class JobMatcher:
             selected_options = [options[i] for i in selected_numbers if 0 <= i < len(options)]
             
             if not selected_options:
-                selected_options = options[:max_selections]  # Fallback
+                print(f"Fallback for selection option")
+                selected_options = ["Error while selecting accomplishments. Please try again."]
                 
             return selected_options
             
         except Exception as e:
             print(f"Error selecting multiple {content_type}: {e}")
-            return options[:max_selections]  # Fallback
+            return ["Error while selecting accomplishments. Please try again."]  # Fallback
