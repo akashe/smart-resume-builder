@@ -40,20 +40,28 @@ def main():
     # Initialize database
     init_database()
     
-    st.title("📄 Resume Matcher MVP")
-    st.markdown("**Upload → Parse → Match → Edit → Export**")
+    # Sidebar navigation with title and status indicators
+    st.sidebar.title("📄 AI-Powered Resume Matcher")
+    st.sidebar.markdown("**Transform your resume for any job with AI-powered matching and optimization**")
     
-    # Sidebar navigation
-    st.sidebar.title("Navigation")
+    # Add workflow overview for new users in sidebar
+    _show_workflow_overview()
+    
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🚀 Workflow Steps")
+    
+    # Get completion status for each step
+    status = _get_workflow_status()
+    
     pages = [
-        "1. Upload Resume",
-        "2. Edit & Add Information", 
-        "3. Job Matching",
-        "4. Edit Resume Sections",
-        "5. Export PDF"
+        f"{'✅' if status['uploaded'] else '📤'} 1. Upload & Parse Resume",
+        f"{'✅' if status['edited'] else '✏️'} 2. Add Variations & Details", 
+        f"{'✅' if status['matched'] else '🎯'} 3. AI Job Matching",
+        f"{'✅' if status['sections_edited'] else '📝'} 4. Review & Finalize",
+        f"{'✅' if status['exported'] else '📄'} 5. Export Resume PDF"
     ]
     
-    page = st.sidebar.radio("Go to:", pages)
+    page = st.sidebar.radio("Choose a step:", pages, help="Complete steps in order for best results")
     
     # Check for OpenAI API key
     if not os.getenv("OPENAI_API_KEY"):
@@ -61,32 +69,34 @@ def main():
         st.stop()
     
     # Page routing
-    if page == "1. Upload Resume":
+    if "1. Upload & Parse Resume" in page:
         upload_resume_page()
-    elif page == "2. Edit & Add Information":
+    elif "2. Add Variations & Details" in page:
         edit_sections_page()
-    elif page == "3. Job Matching":
+    elif "3. AI Job Matching" in page:
         job_matching_page()
-    elif page == "4. Edit Resume Sections":
+    elif "4. Review & Finalize" in page:
         edit_markdown_page()
-    elif page == "5. Export PDF":
+    elif "5. Export Resume PDF" in page:
         export_pdf_page()
 
 def upload_resume_page():
-    st.header("📤 Upload and Parse Resume")
+    st.header("📤 Upload & Parse Resume")
+    st.markdown("**Start by uploading your resume - we'll extract all sections automatically**")
+    
+    # # Clear explanation of what this page does
+    # st.info("""
+    # **What you'll do here:**
+    
+    # 📄 **Upload your resume** - Support for PDF and DOCX formats
+    
+    # 🤖 **AI parsing** - Automatically extract contact, summary, experience, projects, skills, and education
+    
+    # 👀 **Or Load a saved profile** - Load a saved profile.
 
-    # Load from DB option
-    profiles = load_resume_profiles()
+    # """)
 
-    if profiles:
-        profile_options = {f"{name} (ID: {pid})": pid for pid, name in profiles}
-        selected_profile = st.selectbox("Or load a saved profile:", ["Dont want to load a saved profile"] + list(profile_options.keys()))
-        if selected_profile != "Dont want to load a saved profile":
-            profile_id = profile_options[selected_profile]
-            resume_data = get_resume_by_id(profile_id)
-            st.session_state.resume_data = resume_data
-            st.success(f"Loaded profile: {selected_profile}")
-            st.stop()
+    st.markdown("---")
     
     uploaded_file = st.file_uploader(
         "Choose a resume file",
@@ -167,19 +177,41 @@ def upload_resume_page():
     else:
         st.info("Please upload a resume file to get started")
 
+    # Load from DB option
+    profiles = load_resume_profiles()
+
+    if profiles:
+        profile_options = {f"{name} (ID: {pid})": pid for pid, name in profiles}
+        selected_profile = st.selectbox("Or load a saved profile:", ["Dont want to load a saved profile"] + list(profile_options.keys()))
+        if selected_profile != "Dont want to load a saved profile":
+            profile_id = profile_options[selected_profile]
+            resume_data = get_resume_by_id(profile_id)
+            st.session_state.resume_data = resume_data
+            st.success(f"Loaded profile: {selected_profile}")
+            st.stop()
+
 def edit_sections_page():
-    st.header("✏️ Edit & Add Information")
+    st.header("✏️ Add Variations & Details")
+    st.markdown("**Expand your resume content by adding multiple ways to describe your experience**")
     
     if not st.session_state.resume_data:
-        st.warning("Please upload and parse a resume first!")
+        _show_prerequisite_warning("Step 1: Upload & Parse Resume", "You need to upload and parse your resume before adding variations")
         return
     
     resume_data = st.session_state.resume_data
     
-    st.markdown("*Add multiple variations and expand your resume content so AI can select the best match for each job*")
+    # Clear explanation of what to do on this page
+    # st.info("""
+    # **What you'll do here:**
     
-    # Simple guidance without AI suggestion references
-    st.info("💡 Add variations and details here → Go to 'Job Matching' for AI analysis → Use 'Edit Resume Sections' for AI suggestions")
+    # ✍️ **Add multiple variations** of your accomplishments, role summaries, and project descriptions
+    
+    # 📝 **Expand your content** so the AI has more options to choose from when matching to specific jobs
+    
+    # 💡 **Why?** Different jobs value different aspects of your experience. Having variations lets the AI pick the most relevant ones!
+    # """)
+    
+    st.markdown("---")
     
     # Section tabs
     tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["👤 Contact", "📝 Summary", "💼 Experience", "🚀 Projects", "🛠️ Skills", "🎓 Education"])
@@ -412,13 +444,27 @@ def edit_sections_page():
     st.info("👉 Next Steps: Go to 'Job Matching' → Complete company analysis → Use 'Edit Resume Sections' for AI suggestions")
 
 def job_matching_page():
-    st.header("🎯 Enhanced Job Matching")
+    st.header("🎯 AI Job Matching")
+    st.markdown("**Match your resume to specific job requirements with AI-powered content selection**")
     
     if not st.session_state.resume_data:
-        st.warning("Please upload and parse a resume first!")
+        _show_prerequisite_warning("Step 1: Upload & Parse Resume", "You need to upload your resume before matching to jobs")
         return
     
-    st.markdown("**New Enhanced Workflow:** AI Enhances → You Review → AI Selects Best Match")
+    # Clear explanation of what this page does
+    # st.info("""
+    # **What you'll do here:**
+    
+    # 🎯 **Paste a job description** and we'll analyze the company and role requirements
+    
+    # 🤖 **AI enhancement** creates tailored versions of your content for this specific job
+    
+    # ✅ **Review and approve** the AI-enhanced content before final selection
+    
+    # 🎨 **AI selects the best** combination of your content variations for this job
+    # """)
+    
+    st.markdown("---")
     
     # Initialize workflow state
     if 'workflow_step' not in st.session_state:
@@ -450,13 +496,27 @@ def job_matching_page():
     
 
 def edit_markdown_page():
-    st.header("📝 Edit Resume Sections (AI-Enhanced)")
+    st.header("📝 Review & Finalize")
+    st.markdown("**Make final edits to your resume sections with live preview**")
     
     if not st.session_state.resume_data:
-        st.warning("Please upload and parse a resume first!")
+        _show_prerequisite_warning("Step 1: Upload & Parse Resume", "You need to upload your resume before reviewing")
         return
     
-    st.markdown("*Edit each section with AI positioning suggestions - final resume updates automatically*")
+    # # Clear explanation of what this page does
+    # st.info("""
+    # **What you'll do here:**
+    
+    # ✏️ **Review your content** - See either AI-selected content (if you completed job matching) or your full resume
+    
+    # 🎯 **Get AI suggestions** - Each section shows smart positioning advice for your target job
+    
+    # 👀 **Live preview** - See exactly how your resume will look as you make changes
+    
+    # ✅ **Final polish** - Make last-minute adjustments before export
+    # """)
+    
+    st.markdown("---")
     
     # Determine which data source to use for editing
     if st.session_state.selected_content:
@@ -510,16 +570,34 @@ def _generate_custom_filename():
     return f"{clean_name}_{clean_company}_{clean_role}.pdf"
 
 def export_pdf_page():
+    st.header("📄 Export Resume PDF")
+    st.markdown("**Download your optimized resume with professional formatting**")
     
-    if not st.session_state.selected_content:
-        st.warning("Please create a job matched resume first!")
+    if not st.session_state.resume_data:
+        _show_prerequisite_warning("Step 1: Upload & Parse Resume", "You need to upload your resume before exporting")
         return
     
+    # # Clear explanation of what this page does
+    # st.info("""
+    # **What you'll do here:**
+    
+    # 🎨 **Choose a theme** - Select from professional resume templates
+    
+    # 📄 **Generate PDF** - Create a polished, formatted resume ready for applications
+    
+    # 💾 **Custom filename** - Downloads as `YourName_Company_Role.pdf` (if job matching was completed)
+    
+    # ✅ **Ready to apply** - Professional PDF optimized for ATS systems
+    # """)
+    
+    st.markdown("---")
+    
 
-    if st.session_state.selected_content:
-        st.info("📊 **Using Matched Resume Content** - AI-selected content for your pdf")
-    else:
-        st.info("📋 **Using Original Resume Data** - Complete parsed resume")
+    # # Show data source information
+    # if st.session_state.selected_content:
+    #     st.success("📊 **Using Job-Matched Content** - AI-selected content optimized for your target role")
+    # else:
+    #     st.info("📋 **Using Full Resume Content** - Complete resume (consider doing job matching first for better results)")
     
     # Theme Selection Section
     st.subheader("🎨 Choose Resume Theme")
@@ -1582,10 +1660,6 @@ def _render_step3_generate_matched_resume():
     # Show what's being selected from
     approved = st.session_state.approved_content
     
-    st.info(f"**Selection Pool:** {len(approved.get('summary_sentences', []))} summary sentences, "
-           f"{sum(len(exp.get('accomplishments', [])) for exp in approved.get('experience', {}).values())} accomplishments, "
-           f"{sum(len(proj.get('descriptions', [])) for proj in approved.get('projects', {}).values())} project descriptions")
-    
     if st.button("🎯 Generate Best Match Resume", type="primary"):
         with st.spinner("AI is selecting the optimal content mix..."):
             try:
@@ -1691,6 +1765,71 @@ def _create_enhanced_resume_data_structure():
             enhanced_data[field] = st.session_state.resume_data[field]
     
     return enhanced_data
+
+def _show_workflow_overview():
+    """Display workflow overview for new users"""
+    with st.sidebar.expander("🚀 **Getting Started Guide**", expanded=False):
+        st.markdown("""
+        **This tool helps you create targeted resumes by matching your experience to specific job requirements.**
+        
+        #### 📋 How it works:
+        
+        **1. 📤 Upload & Parse** → Upload your resume (PDF/DOCX) and we'll extract all sections
+        
+        **2. ✏️ Add Variations** → Expand your content by adding multiple ways to describe your experience
+        
+        **3. 🎯 AI Job Matching** → Paste a job description and our AI selects the best content for that role
+        
+        **4. 📝 Review & Finalize** → Make final edits to your resume sections with live preview
+        
+        **5. 📄 Export PDF** → Download your optimized resume with professional formatting
+        
+        ---
+        
+        💡 **Pro tip:** Complete steps in order for best results. Each step builds on the previous one!
+        
+        ⚠️ **Requirements:** You need an OpenAI API key set in your `.env` file
+        """)
+
+def _get_workflow_status():
+    """Get completion status for each workflow step"""
+    return {
+        'uploaded': st.session_state.resume_data is not None,
+        'edited': st.session_state.resume_data is not None and _has_additional_content(),
+        'matched': st.session_state.selected_content is not None,
+        'sections_edited': st.session_state.selected_content is not None,  # Same as matched for now
+        'exported': False  # We don't track this currently
+    }
+
+def _has_additional_content():
+    """Check if user has added any additional content variations"""
+    if not st.session_state.resume_data:
+        return False
+    
+    resume_data = st.session_state.resume_data
+    
+    # Check if any summary has multiple sentences
+    if resume_data.get('summary', {}).get('sentences'):
+        if len(resume_data['summary']['sentences']) > 1:
+            return True
+    
+    # Check if any experience has multiple role summaries or accomplishments
+    for exp in resume_data.get('experience', []):
+        if len(exp.get('role_summaries', [])) > 1 or len(exp.get('accomplishments', [])) > 1:
+            return True
+    
+    # Check if any project has multiple descriptions
+    for proj in resume_data.get('projects', []):
+        if len(proj.get('descriptions', [])) > 1:
+            return True
+    
+    return False
+
+def _show_prerequisite_warning(required_step, message):
+    """Show warning when prerequisite step is not completed"""
+    st.warning(f"⚠️ **{message}**")
+    st.info(f"👈 Please complete **{required_step}** first in the sidebar")
+    return True
 
 if __name__ == "__main__":
     main()
