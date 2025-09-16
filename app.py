@@ -1194,14 +1194,19 @@ def _render_step1_enhance_content():
     else:
         st.info("👆 Enter company name, job title, and job description to start AI enhancement")
 
-def _generate_enhanced_content_for_all_sections(resume_data, job_description, company_analysis, 
+def _generate_enhanced_content_for_all_sections(resume_data, job_description, company_analysis,
                                                progress_bar=None, status_text=None, logs_container=None, total_items=0):
     """Generate enhanced versions of all resume sections with global verb tracking and logging"""
-    
+
     # Global verb tracking across all content
     used_verbs = set()
     logs = []
     current_item = 0
+
+    # Extract job keywords and tech terms once for the entire enhancement process
+    update_progress = lambda msg, completed=False: None  # Temporary placeholder
+    job_keywords, tech_keywords = _extract_job_keywords_and_tech_terms(job_description)
+    logs.append(f"🔍 Extracted {len(job_keywords)} job keywords and {len(tech_keywords)} tech terms")
     
     enhanced_content = {
         'summary': {'original': [], 'enhanced': []},
@@ -1236,21 +1241,38 @@ def _generate_enhanced_content_for_all_sections(resume_data, job_description, co
         update_progress(f"🔤 Enhancing {len(sentences)} summary sentences...")
         
         # AI enhance each sentence with verb tracking
+        # enhanced_sentences = []
+        # for i, sentence in enumerate(sentences):
+        #     update_progress(f"🔤 Enhancing summary sentence {i+1}/{len(sentences)}")
+        #     enhanced_sentence = _enhance_content_with_targeted_strategy(
+        #         sentence,
+        #         job_description,
+        #         company_analysis,
+        #         "summary sentence",
+        #         used_verbs,
+        #         job_keywords,
+        #         tech_keywords
+        #     )
+        #     enhanced_sentences.append(enhanced_sentence)
+        #     update_progress(f"✅ Summary sentence {i+1} enhanced", item_completed=True)
+
+        # AI enhance each sentence with verb tracking
         enhanced_sentences = []
-        for i, sentence in enumerate(sentences):
-            update_progress(f"🔤 Enhancing summary sentence {i+1}/{len(sentences)}")
-            enhanced_sentence = _enhance_content_with_verb_tracking(
-                sentence, 
-                job_description, 
-                company_analysis, 
-                "summary sentence",
-                used_verbs
-            )
-            enhanced_sentences.append(enhanced_sentence)
-            update_progress(f"✅ Summary sentence {i+1} enhanced", item_completed=True)
+        update_progress(f"🔤 Enhancing summary sentences")
+        enhanced_sentences = _enhance_content_with_targeted_strategy(
+            sentences,
+            job_description,
+            company_analysis,
+            "summary sentence",
+            used_verbs,
+            job_keywords,
+            tech_keywords
+        )
+        update_progress(f"✅ Summary sentences enhanced", item_completed=True)
         
         enhanced_content['summary']['enhanced'] = enhanced_sentences
     
+    all_role_summaries = {}
     # Enhance experience entries
     if resume_data.get('experience'):
         update_progress(f"💼 Processing {len(resume_data['experience'])} experience entries...")
@@ -1278,31 +1300,35 @@ def _generate_enhanced_content_for_all_sections(resume_data, job_description, co
             # Enhance role summaries
             role_summaries = exp.get('role_summaries', [])
             if role_summaries:
-                update_progress(f"🔤 Enhancing {len(role_summaries)} role summaries for {exp_name}")
-                for i, role_summary in enumerate(role_summaries):
-                    update_progress(f"🔤 Role summary {i+1}/{len(role_summaries)} for {exp_name}")
-                    enhanced_role = _enhance_content_with_verb_tracking(
-                        role_summary,
-                        job_description,
-                        company_analysis,
-                        "role summary",
-                        used_verbs
-                    )
-                    enhanced_exp['role_summaries']['enhanced'].append(enhanced_role)
-                    update_progress(f"✅ Role summary {i+1} enhanced for {exp_name}", item_completed=True)
+                all_role_summaries[exp_idx] = role_summaries
+                # update_progress(f"🔤 Enhancing {len(role_summaries)} role summaries for {exp_name}")
+                # for i, role_summary in enumerate(role_summaries):
+                #     update_progress(f"🔤 Role summary {i+1}/{len(role_summaries)} for {exp_name}")
+                #     enhanced_role = _enhance_content_with_targeted_strategy(
+                #         role_summary,
+                #         job_description,
+                #         company_analysis,
+                #         "role summary",
+                #         used_verbs,
+                #         job_keywords,
+                #         tech_keywords
+                #     )
+                #     enhanced_exp['role_summaries']['enhanced'].append(enhanced_role)
+                #     update_progress(f"✅ Role summary {i+1} enhanced for {exp_name}", item_completed=True)
             
             # Enhance accomplishments
             accomplishments = exp.get('accomplishments', [])
             if accomplishments:
                 update_progress(f"🎯 Enhancing {len(accomplishments)} accomplishments for {exp_name}")
                 for i, accomplishment in enumerate(accomplishments):
-                    update_progress(f"🎯 Accomplishment {i+1}/{len(accomplishments)} for {exp_name}")
-                    enhanced_acc = _enhance_content_with_verb_tracking(
+                    enhanced_acc = _enhance_content_with_targeted_strategy(
                         accomplishment,
                         job_description,
                         company_analysis,
                         "accomplishment",
-                        used_verbs
+                        used_verbs,
+                        job_keywords,
+                        tech_keywords
                     )
                     enhanced_exp['accomplishments']['enhanced'].append(enhanced_acc)
                     update_progress(f"✅ Accomplishment {i+1} enhanced for {exp_name}", item_completed=True)
@@ -1311,6 +1337,24 @@ def _generate_enhanced_content_for_all_sections(resume_data, job_description, co
                 update_progress(f"⏭️ Skipping {exp_name} (no content to enhance)")
             
             enhanced_content['experience'].append(enhanced_exp)
+        
+        # Enhance all role summaries in one go to maintain context
+        if all_role_summaries:
+            update_progress(f"🔤 Enhancing all {len(all_role_summaries)} role summaries")
+            enhanced_role_summaries = _enhance_content_with_targeted_strategy(
+                all_role_summaries,
+                job_description,
+                company_analysis,
+                "role summary",
+                used_verbs,
+                job_keywords,
+                tech_keywords
+            )
+
+            # Map back enhanced summaries to respective experiences
+            for exp_idx, enhanced_summary in enhanced_role_summaries.items():
+                enhanced_content['experience'][int(exp_idx)]['role_summaries']['enhanced'].append(enhanced_summary)
+            
     
     # Enhance projects
     if resume_data.get('projects'):
@@ -1337,12 +1381,14 @@ def _generate_enhanced_content_for_all_sections(resume_data, job_description, co
                 update_progress(f"🔤 Enhancing {len(descriptions)} descriptions for {proj_name}")
                 for i, description in enumerate(descriptions):
                     update_progress(f"🔤 Description {i+1}/{len(descriptions)} for {proj_name}")
-                    enhanced_desc = _enhance_content_with_verb_tracking(
+                    enhanced_desc = _enhance_content_with_targeted_strategy(
                         description,
                         job_description,
                         company_analysis,
                         "project description",
-                        used_verbs
+                        used_verbs,
+                        job_keywords,
+                        tech_keywords
                     )
                     enhanced_proj['descriptions']['enhanced'].append(enhanced_desc)
                     update_progress(f"✅ Project description {i+1} enhanced for {proj_name}", item_completed=True)
@@ -1397,8 +1443,24 @@ def _enhance_single_content(content, job_description, company_analysis, content_
         print(f"Enhancement failed for {content_type}: {e}")
         return content  # Return original if enhancement fails
 
-def _enhance_content_with_verb_tracking(content, job_description, company_analysis, content_type, used_verbs):
-    """Use AI to enhance content while tracking and avoiding repeated action verbs with full company analysis"""
+def _enhance_content_with_targeted_strategy(content, job_description, company_analysis, content_type, used_verbs, job_keywords, tech_keywords):
+    """Use content-type-specific enhancement strategies for nuanced improvements"""
+
+    # Route to specialized enhancement based on content type
+    if content_type == "summary sentence":
+        return _enhance_profile_summary(content, job_description, company_analysis, used_verbs)
+    elif content_type == "accomplishment":
+        return _enhance_role_accomplishment(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords)
+    elif content_type == "role summary":
+        return _enhance_role_summary(content, job_description, company_analysis, used_verbs)
+    elif content_type == "project description":
+        return _enhance_project_description(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords)
+    else:
+        # Fallback to general enhancement
+        return _enhance_general_content(content, job_description, company_analysis, content_type, used_verbs)
+
+def _enhance_profile_summary(content, job_description, company_analysis, used_verbs):
+    """Enhance profile summary focusing on top_values and hidden_preferences"""
 
     try:
         import json
@@ -1408,139 +1470,392 @@ def _enhance_content_with_verb_tracking(content, job_description, company_analys
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
-        # Extract all available company analysis data
         company_type = company_analysis.get('company_type', 'tech')
         top_values = company_analysis.get('top_values', [])
-        red_flags = company_analysis.get('red_flags', [])
-        golden_signals = company_analysis.get('golden_signals', [])
-        positioning_advice = company_analysis.get('positioning_advice', {})
-
-        # Get specific positioning guidance
-        emphasize_points = positioning_advice.get('emphasize', [])
-        avoid_points = positioning_advice.get('avoid', [])
-        language_tips = positioning_advice.get('language_tips', [])
-
-        # Convert set to list for JSON serialization
+        hidden_preferences = company_analysis.get('hidden_preferences', {})
         used_verbs_list = list(used_verbs) if used_verbs else []
 
-        # Build comprehensive enhancement prompt
         prompt = f"""
-        Enhance this resume {content_type} for a {company_type} company using advanced positioning strategy.
+        Enhance this profile summary to align with company values and hidden preferences.
+        You are given a total of {len(content)} sentences of the original summary. Your job is to create a new summary 
+        sentences that better fit with the company culture and hidden preferences.
 
         Original: "{content}"
 
-        COMPANY INTELLIGENCE:
-        - Type: {company_type}
-        - Values: {', '.join(top_values)}
-        - Golden Signals (what they LOVE): {', '.join(golden_signals[:3])}
-        - Red Flags (what to AVOID): {', '.join(red_flags[:3])}
+        TARGET COMPANY: {company_type}
+        KEY VALUES: {', '.join(top_values[:3])}
+        HIDDEN PREFERENCES: {hidden_preferences}
 
-        POSITIONING STRATEGY:
-        - Emphasize: {', '.join(emphasize_points[:3])}
-        - Avoid mentioning: {', '.join(avoid_points[:2])}
-        - Language style: {', '.join(language_tips[:2])}
+        VERB TRACKING: Avoid these used verbs: {', '.join(used_verbs_list)}
 
-        VERB TRACKING:
-        - CRITICAL: Avoid starting with these already used action verbs: {', '.join(used_verbs_list)}
-        - Use a DIFFERENT impactful action verb to start your enhanced version
+        PROFILE SUMMARY RULES:
+        1. Focus on CULTURAL FIT and VALUES alignment
+        2. Highlight personality traits that match company values
+        3. Mention years of experience if relevant to company expectations
+        4. Keep it conversational and authentic
+        5. Avoid technical jargon - focus on mindset and approach
+        6. Use diverse, non-repetitive language
+        7. Return as many sentences are there are in the orignal summary.
+        8. Return a list of action verb you used in the enhancement.
 
-        ENHANCEMENT RULES:
-        1. Keep the same core facts and achievements
-        2. Align language with {company_type} company preferences
-        3. Incorporate golden signals naturally where relevant
-        4. Completely avoid any red flag topics or language
-        5. Follow positioning strategy to emphasize preferred aspects
-        6. Use compelling, impact-focused language
-        7. Stay truthful and factual
-        8. Keep it concise but powerful
-
-        Return a JSON response with this exact format:
-        {{
-            "enhanced_content": "your strategically enhanced text here",
-            "action_verb_used": "the main action verb you started with"
-        }}
-
-        Return only valid JSON, no explanation or markdown formatting.
+        Return JSON: {{"enhanced_content": ["enhanced sentence 1", "enhanced sentence 2"...], "action_verbs_used": ["verb 1", "verb 2"...]}}
         """
-        
+
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,  # Slightly higher for more variety
-            max_tokens=300
+            temperature=0.3,
+            max_tokens=200
         )
-        
+
+        return _parse_enhancement_response(response, content, used_verbs, "list")
+
+    except Exception as e:
+        print(f"Profile summary enhancement failed: {e}")
+        return content
+
+def _enhance_role_accomplishment(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords):
+    """Enhance role accomplishments focusing on job_keywords and required skills"""
+
+    try:
+        import json
+        from openai import OpenAI
+        import os
+
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+        company_type = company_analysis.get('company_type', 'tech')
+        used_verbs_list = list(used_verbs) if used_verbs else []
+
+        prompt = f"""
+        Enhance this accomplishment to highlight skills and technologies needed for the target role.
+
+        Original: "{content}"
+
+        TARGET ROLE NEEDS: {', '.join(job_keywords[:8])}
+        COMPANY TYPE: {company_type}
+        USED VERBS: {', '.join(used_verbs_list)}
+
+        ACCOMPLISHMENT RULES:
+        1. QUANTIFY impact with specific metrics where possible
+        2. Highlight TECHNICAL SKILLS that match job requirements
+        3. Emphasize RESULTS and measurable outcomes
+        4. Use action verbs that haven't been used before
+        5. Keep focus on what YOU achieved specifically
+        6. Match terminology to job posting language
+        7. Stay factual and specific
+        8. Maximum 1 sentence, powerful and concise
+
+        Return JSON: {{"enhanced_content": "quantified accomplishment", "action_verb_used": "verb"}}
+        """
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,
+            max_tokens=200
+        )
+
+        return _parse_enhancement_response(response, content, used_verbs)
+
+    except Exception as e:
+        print(f"Accomplishment enhancement failed: {e}")
+        return content
+
+def _enhance_role_summary(content, job_description, company_analysis, used_verbs):
+    """Enhance role summaries focusing on golden_signals and positioning_advice"""
+
+    try:
+        import json
+        from openai import OpenAI
+        import os
+
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+        company_type = company_analysis.get('company_type', 'tech')
+        golden_signals = company_analysis.get('golden_signals', [])
+        positioning_advice = company_analysis.get('positioning_advice', {})
+        emphasize_points = positioning_advice.get('emphasize', [])
+        used_verbs_list = list(used_verbs) if used_verbs else []
+
+        expected_output = '{"enhanced_content": {"0": "enhanced summary 1", "1": "enhanced summary 2", ..}, "action_verbs_used": ["verb 1", "verb 2"...]}'
+
+        prompt = f"""
+        You will be given a dictionary of role summaries to enhance. 
+        Each key in the dictionary corresponds to an experience in the resume and the value is the role summary for that experience.
+        You will be given information about the company and the role the candidate is applying for using his resume.
+
+        Your job is to enhance each role summary to better align with the company's golden signals and positioning advice.
+        We are doing enhancement of all role summaries in one go to avoid same enhancemnents across all role summaries.
+        You have to enhance the summaries in such a way that as a whole they are holistic and shows the candidate in best light.
+        Enhance recent roles with more emphasis on golden signals and positioning advice. The recent roles will be the ones with smaller key values.
+
+        You are given a total of {len(content)} role summaries to enhance.
+        You should not create new role summaries, only enhance the ones given to you with the original key mapping.
+
+        Original: "{content}"
+
+        COMPANY LOVES: {', '.join(golden_signals)}
+        EMPHASIZE: {', '.join(emphasize_points)}
+        COMPANY TYPE: {company_type}
+        USED VERBS: {', '.join(used_verbs_list)}
+
+        ROLE SUMMARY RULES:
+        1. Position your RESPONSIBILITIES around what company values
+        3. Show SCOPE of work (team size, budget, scale)
+        4. Mention METHODOLOGY and APPROACH that aligns with golden signals
+        5. Each enhanced role summary should be 1-2 sentences max. 
+        6. Focus on HOW you worked, not just what you did
+        7. You have to very precise and concise because people have very short attention spans these days.
+        8. Use diverse, non-repetitive language
+
+        Return JSON: {expected_output}
+        """
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=500,
+
+        )
+
+        return _parse_enhancement_response(response, content, used_verbs, type= "dict")
+
+    except Exception as e:
+        print(f"Role summary enhancement failed: {e}")
+        return content
+
+def _enhance_project_description(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords):
+    """Enhance project descriptions focusing on tech_stack alignment (max 2 sentences)"""
+
+    try:
+        import json
+        from openai import OpenAI
+        import os
+
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+        company_type = company_analysis.get('company_type', 'tech')
+        used_verbs_list = list(used_verbs) if used_verbs else []
+
+        prompt = f"""
+        Enhance this project description to highlight relevant technologies and technical approach.
+
+        Original: "{content}"
+
+        TARGET TECH STACK: {', '.join(tech_keywords[:6])}
+        COMPANY TYPE: {company_type}
+        USED VERBS: {', '.join(used_verbs_list)}
+
+        PROJECT DESCRIPTION RULES:
+        1. MAXIMUM 2 sentences - be extremely concise
+        2. Highlight TECHNOLOGIES that match the job posting
+        3. Focus on TECHNICAL CHALLENGES solved
+        4. Mention PROJECT SCALE or technical complexity
+        5. Emphasize personal TECHNICAL CONTRIBUTION
+        6. Use modern, relevant technical terminology
+        7. Show problem-solving approach if space allows
+
+        Return JSON: {{"enhanced_content": "concise tech-focused description", "action_verb_used": "verb"}}
+        """
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,
+            max_tokens=200
+        )
+
+        return _parse_enhancement_response(response, content, used_verbs)
+
+    except Exception as e:
+        print(f"Project description enhancement failed: {e}")
+        return content
+
+def _enhance_general_content(content, job_description, company_analysis, content_type, used_verbs):
+    """Fallback general enhancement for unknown content types"""
+
+    try:
+        import json
+        from openai import OpenAI
+        import os
+
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+        company_type = company_analysis.get('company_type', 'tech')
+        top_values = company_analysis.get('top_values', [])
+        used_verbs_list = list(used_verbs) if used_verbs else []
+
+        prompt = f"""
+        Enhance this {content_type} for a {company_type} company.
+
+        Original: "{content}"
+        Company values: {', '.join(top_values)}
+        Used verbs: {', '.join(used_verbs_list)}
+
+        Keep the same core facts, improve language for impact, use different action verbs.
+        Return JSON: {{"enhanced_content": "enhanced text", "action_verb_used": "verb"}}
+        """
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=200
+        )
+
+        return _parse_enhancement_response(response, content, used_verbs)
+
+    except Exception as e:
+        print(f"General enhancement failed: {e}")
+        return content
+
+def _parse_enhancement_response(response, original_content, used_verbs, type = None):
+    """Parse AI response and handle JSON parsing with fallbacks"""
+
+    try:
         response_text = response.choices[0].message.content.strip()
-        
-        # Clean up any markdown formatting
+
+        # Clean up markdown formatting
         if response_text.startswith('```json'):
             response_text = response_text.replace('```json', '').replace('```', '').strip()
         elif response_text.startswith('```'):
             response_text = response_text.replace('```', '').strip()
-        
-        try:
-            # Parse JSON response
-            result = json.loads(response_text)
-            enhanced_content = result.get('enhanced_content', content)
+
+        result = json.loads(response_text)
+        if type == None:
+            
+            enhanced_content = result.get('enhanced_content', original_content)
             action_verb = result.get('action_verb_used', '')
 
-            # Add the verb to used_verbs set
+            # Add verb to tracking set
             if action_verb:
                 used_verbs.add(action_verb.lower())
+        elif type == "list":
+            print(f'Original content: {original_content}')
+            enhanced_content = result.get('enhanced_content', []) 
+            print(f'Enhanced content: {enhanced_content}')
+            assert len(enhanced_content) == len(original_content), "Enhanced content length mismatch"
 
-            return enhanced_content
-            
-        except json.JSONDecodeError:
-            print(f"JSON parsing failed for {content_type}. Response: {response_text[:100]}...")
-            
-            # Fallback: try to extract enhanced content from response
-            # Look for quotes or return the whole response if it looks like enhanced content
-            if '"' in response_text and 'enhanced_content' in response_text:
-                # Try to extract from malformed JSON
-                try:
-                    start = response_text.find('"enhanced_content":') + len('"enhanced_content":')
-                    content_part = response_text[start:].strip()
-                    if content_part.startswith('"'):
-                        end = content_part.find('",', 1)
-                        if end == -1:
-                            end = content_part.find('"', 1)
-                        if end > 0:
-                            fallback_content = content_part[1:end]
-                            # Try to extract verb too
-                            first_word = fallback_content.split()[0].rstrip('.,;:').lower()
-                            used_verbs.add(first_word)
-                            return fallback_content
-                except:
-                    pass
-            
-            # Final fallback: use original enhancement function
-            print(f"Using fallback enhancement for {content_type}")
-            enhanced = _enhance_single_content(content, job_description, company_analysis, content_type)
-            
-            # Try to extract first word as verb
+            action_verbs = result.get('action_verbs_used', '')
+            assert len(action_verbs) != 0
+            for verb in action_verbs:
+                used_verbs.add(verb.lower())
+        elif type == "dict":
+            print(f'Original content: {original_content}')
+            enhanced_content = result.get('enhanced_content', {}) 
+            print(f'Enhanced content: {enhanced_content}')
+            assert len(enhanced_content) == len(original_content), "Enhanced content length mismatch"
+
+            # check each key in original content is present in enhanced content
+            for key in original_content.keys():
+                assert str(key) in enhanced_content, f"Key {key} missing in enhanced content"
+
+            action_verbs = result.get('action_verbs_used', '')
+            assert len(action_verbs) != 0
+            for verb in action_verbs:
+                used_verbs.add(verb.lower())
+
+
+        return enhanced_content
+
+    except json.JSONDecodeError:
+        # Try to extract content from malformed JSON
+        print(f"JSON parsing failed for!, {response_text}")
+        if '"enhanced_content":' in response_text:
             try:
-                words = enhanced.split()
-                if words:
-                    first_word = words[0].rstrip('.,;:').lower()
-                    used_verbs.add(first_word)
+                start = response_text.find('"enhanced_content":') + len('"enhanced_content":')
+                content_part = response_text[start:].strip()
+                if content_part.startswith('"'):
+                    end = content_part.find('",', 1)
+                    if end == -1:
+                        end = content_part.find('"', 1)
+                    if end > 0:
+                        extracted_content = content_part[1:end]
+                        # Try to extract verb
+                        first_word = extracted_content.split()[0].rstrip('.,;:').lower()
+                        used_verbs.add(first_word)
+                        return extracted_content
             except:
                 pass
-                
-            return enhanced
-        
+
+        return original_content
     except Exception as e:
-        print(f"Verb tracking enhancement failed for {content_type}: {e}")
-        print(f"Content was: {content[:100]}...")  # Show first 100 chars for debugging
-        
-        # Try fallback enhancement
+        print(f"Response parsing failed: {e}, {original_content}")
+        return original_content
+
+def _extract_job_keywords_and_tech_terms(job_description):
+    """Extract both job keywords and technical terms from job description using AI and patterns"""
+    try:
+        import re
+        from openai import OpenAI
+        import os
+
+        # Basic pattern-based extraction for immediate use
+        job_lower = job_description.lower()
+
+        # Dynamic tech pattern detection
+        tech_patterns = [
+            r'\b(python|java|javascript|typescript|react|node\.?js|angular|vue)\b',
+            r'\b(aws|azure|gcp|docker|kubernetes|terraform|ansible)\b',
+            r'\b(sql|mongodb|postgresql|redis|elasticsearch|mysql)\b',
+            r'\b(machine learning|ml|ai|data science|analytics)\b',
+            r'\b(rest|api|microservices|graphql)\b',
+            r'\b(git|ci/cd|devops|jenkins|github)\b',
+            r'\b(agile|scrum|kanban)\b'
+        ]
+
+        tech_keywords = []
+        for pattern in tech_patterns:
+            matches = re.findall(pattern, job_lower)
+            tech_keywords.extend(matches)
+        tech_keywords = list(set(tech_keywords))  # Deduplicate
+        print(f'Tech keywords: {tech_keywords}')
+
+        # Extract general job keywords using AI
         try:
-            fallback_result = _enhance_single_content(content, job_description, company_analysis, content_type)
-            print(f"Fallback enhancement succeeded for {content_type}")
-            return fallback_result
-        except Exception as fallback_error:
-            print(f"Fallback enhancement also failed for {content_type}: {fallback_error}")
-            print(f"Returning original content for {content_type}")
-            return content  # Return original if all fails
+            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+            prompt = f"""
+            Extract key technical skills and requirements from this job description.
+            Return as comma-separated list of 10-15 most important keywords.
+            Focus on: skills, technologies, methodologies, tools, frameworks.
+
+            Job Description: {job_description[:1000]}
+
+            Return only the comma-separated list, no other text.
+            """
+
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=200
+            )
+
+            ai_keywords = [kw.strip() for kw in response.choices[0].message.content.split(',')]
+            job_keywords = ai_keywords[:15]
+
+        except Exception as e:
+            print(f"AI keyword extraction failed: {e}")
+            # Fallback to basic pattern extraction
+            job_keywords = list(set(tech_keywords))[:10]
+
+        # Combine and deduplicate
+        all_tech_keywords = list(set(tech_keywords + job_keywords))[:15]
+        print(f'All tech keywords: {all_tech_keywords}')
+
+        return job_keywords, all_tech_keywords
+
+    except Exception as e:
+        print(f"Keyword extraction failed: {e}")
+        return [], []
 
 
 def _render_step2_review_enhancements():

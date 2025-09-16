@@ -79,33 +79,18 @@ class CompanyAnalyzer:
             ]
         }
 
-    def research_company_with_web_search(self, company_name: str) -> Dict[str, Any]:
-        """Research company using web search to get detailed information"""
-        
-        company_info = {
-            "company_name": company_name,
-            "type_indicators": [],
-            "culture_signals": [],
-            "tech_preferences": [],
-            "size_stage": "",
-            "recent_context": []
-        }
-        
-        # This would be called from the UI using WebSearch tool
-        # For now, return structure that can be populated
-        return company_info
-
     def analyze_company_dna(self, job_description: str, company_name: str = "") -> Dict[str, Any]:
         """
         Comprehensive analysis of company culture and values from job description
         """
         
         # Basic analysis using keywords
-        company_type = self._detect_company_type(job_description, company_name)
+        # company_type = self._detect_company_type(job_description, company_name)
         values_scores = self._calculate_values_scores(job_description)
         
         # AI-powered deep analysis
         ai_analysis = self._ai_deep_analysis(job_description, company_name)
+        company_type = ai_analysis.get("company_type", 'tech')
         
         # Combine analyses
         analysis = {
@@ -177,6 +162,7 @@ class CompanyAnalyzer:
         
         Return this exact JSON structure (no additional text):
         {{
+            "company_type": "startup | enterprise | big_tech | consulting | finance | healthtech | tech ",
             "hiring_manager_type": "technical_leader",
             "red_flags": ["Experimental technologies without proven results", "Lack of collaborative experience"],
             "golden_signals": ["System design thinking", "Cross-team collaboration"],
