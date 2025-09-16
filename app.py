@@ -29,6 +29,10 @@ if 'company_analysis' not in st.session_state:
     st.session_state.company_analysis = None
 if 'show_final_editor' not in st.session_state:
     st.session_state.show_final_editor = False
+if 'current_profile_id' not in st.session_state:
+    st.session_state.current_profile_id = None
+if 'current_profile_name' not in st.session_state:
+    st.session_state.current_profile_name = None
 
 def main():
     st.set_page_config(
@@ -115,6 +119,9 @@ def upload_resume_page():
                     # Parse the resume
                     resume_data = parser.parse_file(uploaded_file)
                     st.session_state.resume_data = resume_data
+                    # Clear current profile tracking since this is a new parse
+                    st.session_state.current_profile_id = None
+                    st.session_state.current_profile_name = None
                     
                     st.success("✅ Resume parsed successfully!")
                     
@@ -187,6 +194,9 @@ def upload_resume_page():
             profile_id = profile_options[selected_profile]
             resume_data = get_resume_by_id(profile_id)
             st.session_state.resume_data = resume_data
+            # Track the currently loaded profile
+            st.session_state.current_profile_id = profile_id
+            st.session_state.current_profile_name = selected_profile
             st.success(f"Loaded profile: {selected_profile}")
             st.stop()
 
@@ -431,15 +441,57 @@ def edit_sections_page():
                     edu['graduation'] = st.text_input("Graduation:", value=edu.get('graduation', ''), key=f"edu_grad_{edu_idx}")
                     edu['location'] = st.text_input("Location:", value=edu.get('location', ''), key=f"edu_loc_{edu_idx}")
     
-    # Save button
-    if st.button("💾 Save Changes to DB", type="primary"):
-        # st.session_state.resume_data = resume_data
-        try:
-            save_resume_to_db(st.session_state.resume_data)
-            st.success("✅ All changes saved to session and database!")
-        except Exception as e:
-            st.error(f"Session saved, but database save failed: {str(e)}")
-        st.rerun()
+    # Save buttons
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Determine button text based on whether a profile is loaded
+        if st.session_state.current_profile_id:
+            button_text = f"💾 Save to '{st.session_state.current_profile_name}'"
+            help_text = "Update the currently loaded profile"
+        else:
+            button_text = "💾 Save Changes to DB"
+            help_text = "Save as new profile using contact name"
+
+        if st.button(button_text, type="primary", help=help_text):
+            try:
+                if st.session_state.current_profile_id:
+                    # Save to current profile by ID
+                    success = save_resume_to_db(
+                        st.session_state.resume_data,
+                        profile_id=st.session_state.current_profile_id
+                    )
+                    if success:
+                        st.success(f"✅ Profile '{st.session_state.current_profile_name}' updated!")
+                    else:
+                        st.error("❌ Failed to update profile. Profile may not exist.")
+                else:
+                    # Save as new profile using name
+                    save_resume_to_db(st.session_state.resume_data)
+                    st.success("✅ Changes saved to database!")
+            except Exception as e:
+                st.error(f"Save failed: {str(e)}")
+            st.rerun()
+
+    with col2:
+        with st.popover("💾 Save As New Profile", use_container_width=True):
+            st.write("**Save as a new profile version**")
+            new_profile_name = st.text_input(
+                "Profile name:",
+                placeholder="e.g., John Doe - Software Engineer v2",
+                help="Enter a unique name for this profile version"
+            )
+
+            if st.button("Save As New Profile", type="secondary"):
+                if new_profile_name.strip():
+                    success, result = save_resume_as_new_profile(st.session_state.resume_data, new_profile_name.strip())
+                    if success:
+                        st.success(f"✅ Profile saved as: {new_profile_name}")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Error: {result}")
+                else:
+                    st.error("Please enter a profile name")
     
     st.info("👉 Next Steps: Go to 'Job Matching' → Complete company analysis → Use 'Edit Resume Sections' for AI suggestions")
 
@@ -1089,6 +1141,7 @@ def _render_step1_enhance_content():
                 
                 # Get company analysis
                 company_analysis = positioning_coach.company_analyzer.analyze_company_dna(job_description, company_name)
+                print(company_analysis)
                 logs.append(f"✅ Company analysis complete: {company_analysis.get('company_type', 'Unknown')} company")
                 
                 progress_bar.progress(20)
@@ -1345,45 +1398,68 @@ def _enhance_single_content(content, job_description, company_analysis, content_
         return content  # Return original if enhancement fails
 
 def _enhance_content_with_verb_tracking(content, job_description, company_analysis, content_type, used_verbs):
-    """Use AI to enhance content while tracking and avoiding repeated action verbs"""
-    
+    """Use AI to enhance content while tracking and avoiding repeated action verbs with full company analysis"""
+
     try:
         import json
         from openai import OpenAI
         import os
-        
+
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-        
+
+        # Extract all available company analysis data
         company_type = company_analysis.get('company_type', 'tech')
         top_values = company_analysis.get('top_values', [])
-        
+        red_flags = company_analysis.get('red_flags', [])
+        golden_signals = company_analysis.get('golden_signals', [])
+        positioning_advice = company_analysis.get('positioning_advice', {})
+
+        # Get specific positioning guidance
+        emphasize_points = positioning_advice.get('emphasize', [])
+        avoid_points = positioning_advice.get('avoid', [])
+        language_tips = positioning_advice.get('language_tips', [])
+
         # Convert set to list for JSON serialization
         used_verbs_list = list(used_verbs) if used_verbs else []
-        
+
+        # Build comprehensive enhancement prompt
         prompt = f"""
-        Enhance this resume {content_type} for a {company_type} company.
-        
+        Enhance this resume {content_type} for a {company_type} company using advanced positioning strategy.
+
         Original: "{content}"
-        
-        Company values: {', '.join(top_values)}
-        
-        CRITICAL: Avoid starting with these already used action verbs: {', '.join(used_verbs_list)}
-        
-        Instructions:
-        - Keep the same core facts and achievements
-        - Use a DIFFERENT action verb than the ones listed above
-        - Improve language for impact and clarity
-        - Use terminology that resonates with {company_type} companies
-        - Make it more compelling while staying truthful
-        - Keep it concise but impactful
-        
+
+        COMPANY INTELLIGENCE:
+        - Type: {company_type}
+        - Values: {', '.join(top_values)}
+        - Golden Signals (what they LOVE): {', '.join(golden_signals[:3])}
+        - Red Flags (what to AVOID): {', '.join(red_flags[:3])}
+
+        POSITIONING STRATEGY:
+        - Emphasize: {', '.join(emphasize_points[:3])}
+        - Avoid mentioning: {', '.join(avoid_points[:2])}
+        - Language style: {', '.join(language_tips[:2])}
+
+        VERB TRACKING:
+        - CRITICAL: Avoid starting with these already used action verbs: {', '.join(used_verbs_list)}
+        - Use a DIFFERENT impactful action verb to start your enhanced version
+
+        ENHANCEMENT RULES:
+        1. Keep the same core facts and achievements
+        2. Align language with {company_type} company preferences
+        3. Incorporate golden signals naturally where relevant
+        4. Completely avoid any red flag topics or language
+        5. Follow positioning strategy to emphasize preferred aspects
+        6. Use compelling, impact-focused language
+        7. Stay truthful and factual
+        8. Keep it concise but powerful
+
         Return a JSON response with this exact format:
         {{
-            "enhanced_content": "your enhanced text here",
+            "enhanced_content": "your strategically enhanced text here",
             "action_verb_used": "the main action verb you started with"
         }}
-        
+
         Return only valid JSON, no explanation or markdown formatting.
         """
         
@@ -1407,11 +1483,11 @@ def _enhance_content_with_verb_tracking(content, job_description, company_analys
             result = json.loads(response_text)
             enhanced_content = result.get('enhanced_content', content)
             action_verb = result.get('action_verb_used', '')
-            
+
             # Add the verb to used_verbs set
             if action_verb:
                 used_verbs.add(action_verb.lower())
-                
+
             return enhanced_content
             
         except json.JSONDecodeError:

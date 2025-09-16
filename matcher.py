@@ -12,9 +12,6 @@ class JobMatcher:
     def match_resume_to_job(self, resume_data: Dict[str, Any], job_description: str) -> Dict[str, Any]:
         """Use AI to select the best resume content for a specific job from structured data"""
         
-        # Debug: Print the resume data structure
-        print("DEBUG: Resume data keys:", list(resume_data.keys()))
-        print("DEBUG: Resume data structure:")
         for key, value in resume_data.items():
             print(f"  {key}: {type(value)}")
             if isinstance(value, dict):

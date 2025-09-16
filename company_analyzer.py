@@ -203,7 +203,6 @@ class CompanyAnalyzer:
             )
             
             content = response.choices[0].message.content.strip()
-            print(f"DEBUG: AI response content: {content[:200]}...")  # Debug output
             
             # Clean the response - remove any markdown formatting
             if content.startswith('```json'):

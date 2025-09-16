@@ -21,23 +21,35 @@ def init_database():
     conn.commit()
     conn.close()
 
-def save_resume_to_db(resume_data):
+def save_resume_to_db(resume_data, profile_id=None, profile_name=None):
+    """Save resume data to database. If profile_id is provided, update that profile. Otherwise save by name."""
     conn = sqlite3.connect('resume_data.db')
     c = conn.cursor()
-    name = resume_data.get('contact', {}).get('name', 'Unknown')
     resume_json = json.dumps(resume_data)
-    
-    # Check if profile with this name exists
-    c.execute("SELECT id FROM resume_profiles WHERE name=?", (name,))
-    row = c.fetchone()
-    if row:
-        # Update existing profile
-        c.execute("UPDATE resume_profiles SET resume_json=? WHERE name=?", (resume_json, name))
+
+    if profile_id is not None:
+        # Update existing profile by ID
+        c.execute("UPDATE resume_profiles SET resume_json=? WHERE id=?", (resume_json, profile_id))
+        updated_rows = c.rowcount
+        conn.commit()
+        conn.close()
+        return updated_rows > 0
     else:
-        # Insert new profile
-        c.execute("INSERT INTO resume_profiles (name, resume_json) VALUES (?, ?)", (name, resume_json))
-    conn.commit()
-    conn.close()
+        # Original behavior: save by name
+        name = profile_name or resume_data.get('contact', {}).get('name', 'Unknown')
+
+        # Check if profile with this name exists
+        c.execute("SELECT id FROM resume_profiles WHERE name=?", (name,))
+        row = c.fetchone()
+        if row:
+            # Update existing profile
+            c.execute("UPDATE resume_profiles SET resume_json=? WHERE name=?", (resume_json, name))
+        else:
+            # Insert new profile
+            c.execute("INSERT INTO resume_profiles (name, resume_json) VALUES (?, ?)", (name, resume_json))
+        conn.commit()
+        conn.close()
+        return True
 
 def load_resume_profiles():
     conn = sqlite3.connect('resume_data.db')
@@ -56,3 +68,23 @@ def get_resume_by_id(profile_id):
     if row:
         return json.loads(row[0])
     return None
+
+def save_resume_as_new_profile(resume_data, profile_name):
+    """Save resume data as a new profile with specified name"""
+    conn = sqlite3.connect('resume_data.db')
+    c = conn.cursor()
+    resume_json = json.dumps(resume_data)
+
+    # Check if profile with this name already exists
+    c.execute("SELECT id FROM resume_profiles WHERE name=?", (profile_name,))
+    row = c.fetchone()
+    if row:
+        conn.close()
+        return False, "Profile name already exists"
+
+    # Insert new profile
+    c.execute("INSERT INTO resume_profiles (name, resume_json) VALUES (?, ?)", (profile_name, resume_json))
+    conn.commit()
+    profile_id = c.lastrowid
+    conn.close()
+    return True, profile_id
