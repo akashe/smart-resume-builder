@@ -94,10 +94,12 @@ class RenderCVRenderer:
                 html_command=None
             )
             
-            # Find the generated PDF
+            # Find the generated PDF - use the most recent one
             pdf_files = list(output_dir.glob("*.pdf"))
             if pdf_files:
-                with open(pdf_files[0], 'rb') as f:
+                # Sort by modification time to get the most recent PDF
+                latest_pdf = max(pdf_files, key=lambda p: p.stat().st_mtime)
+                with open(latest_pdf, 'rb') as f:
                     return f.read()
             else:
                 raise RuntimeError("No PDF file was generated")
@@ -138,9 +140,10 @@ class RenderCVRenderer:
                     pdf_files.extend([os.path.join(item, f) for f in subdir_pdfs])
             
             if pdf_files:
-                # Use the first PDF found
-                pdf_path = os.path.join(search_dir, pdf_files[0])
-                with open(pdf_path, 'rb') as f:
+                # Use the most recent PDF found (in case multiple PDFs exist)
+                pdf_paths = [os.path.join(search_dir, f) for f in pdf_files]
+                latest_pdf = max(pdf_paths, key=lambda p: os.path.getmtime(p))
+                with open(latest_pdf, 'rb') as f:
                     return f.read()
             else:
                 # Debug: list all files created

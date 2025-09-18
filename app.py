@@ -59,12 +59,16 @@ def main():
     
     pages = [
         f"{'✅' if status['uploaded'] else '📤'} 1. Upload & Parse Resume",
-        f"{'✅' if status['edited'] else '✏️'} 2. Add Variations & Details", 
+        f"{'✅' if status['edited'] else '✏️'} 2. Add Variations & Details",
         f"{'✅' if status['matched'] else '🎯'} 3. AI Job Matching",
         f"{'✅' if status['sections_edited'] else '📝'} 4. Review & Finalize",
         f"{'✅' if status['exported'] else '📄'} 5. Export Resume PDF"
     ]
-    
+
+    # Add cover letter option if profile is loaded
+    if st.session_state.resume_data:
+        pages.append("📝 Generate Cover Letter")
+
     page = st.sidebar.radio("Choose a step:", pages, help="Complete steps in order for best results")
     
     # Check for OpenAI API key
@@ -83,6 +87,8 @@ def main():
         edit_markdown_page()
     elif "5. Export Resume PDF" in page:
         export_pdf_page()
+    elif "Generate Cover Letter" in page:
+        cover_letter_page()
 
 def upload_resume_page():
     st.header("📤 Upload & Parse Resume")
@@ -122,6 +128,9 @@ def upload_resume_page():
                     # Clear current profile tracking since this is a new parse
                     st.session_state.current_profile_id = None
                     st.session_state.current_profile_name = None
+                    # Reset job matching data since this is a new resume
+                    st.session_state.selected_content = None
+                    st.session_state.final_markdown = ""
                     
                     st.success("✅ Resume parsed successfully!")
                     
@@ -197,6 +206,9 @@ def upload_resume_page():
             # Track the currently loaded profile
             st.session_state.current_profile_id = profile_id
             st.session_state.current_profile_name = selected_profile
+            # Reset job matching data since this is a different profile
+            st.session_state.selected_content = None
+            st.session_state.final_markdown = ""
             st.success(f"Loaded profile: {selected_profile}")
             st.stop()
 
@@ -643,7 +655,22 @@ def export_pdf_page():
     # """)
     
     st.markdown("---")
-    
+
+    # TEMPORARY DEBUG: Show current session state
+    st.write("🔍 **DEBUG INFO:**")
+    st.write(f"- Current profile ID: {st.session_state.get('current_profile_id', 'None')}")
+    st.write(f"- Current profile name: {st.session_state.get('current_profile_name', 'None')}")
+    if st.session_state.resume_data:
+        st.write(f"- Resume data name: {st.session_state.resume_data.get('contact', {}).get('name', 'Unknown')}")
+    if st.session_state.selected_content:
+        st.write(f"- Selected content name: {st.session_state.selected_content.get('contact', {}).get('name', 'Unknown from selected_content')}")
+
+    # NUCLEAR OPTION: Reset selected_content manually
+    if st.button("🧹 Clear Old Job Matching Data (TEMP FIX)"):
+        st.session_state.selected_content = None
+        st.session_state.final_markdown = ""
+        st.success("Cleared! Try generating PDF again.")
+        st.rerun()
 
     # # Show data source information
     # if st.session_state.selected_content:
@@ -677,6 +704,7 @@ def export_pdf_page():
         
         selected_engine, selected_theme = theme_mapping[selected_display]
         st.session_state.selected_theme = (selected_engine, selected_theme)
+        st.write(f"DEBUG: Selected theme: {selected_engine} - {selected_theme}")
         
         # Show theme info
         theme_info = theme_exporter.get_theme_info(selected_engine, selected_theme)
@@ -694,7 +722,9 @@ def export_pdf_page():
                     #     # Note: For now using resume data structure - could enhance to parse markdown
                     # else:
                     #     resume_data = st.session_state.selected_content or st.session_state.resume_data
+                    # TEMPORARY FIX: Force use current profile data
                     resume_data = st.session_state.selected_content or st.session_state.resume_data
+                    st.write(f"DEBUG: Using profile data for: {resume_data.get('contact', {}).get('name', 'Unknown')}")
                     
                     pdf_bytes = theme_exporter.export_resume(
                         resume_data,
@@ -791,9 +821,10 @@ def _generate_experience_markdown():
             markdown += f" | {exp['location']}"
         markdown += "\n\n"
         
-        # Role summary
+        # Role summaries (all of them, not just the first one)
         if exp.get('role_summaries') and exp['role_summaries']:
-            markdown += exp['role_summaries'][0] + "\n\n"
+            for role_summary in exp['role_summaries']:
+                markdown += role_summary + "\n\n"
         
         # Accomplishments
         if exp.get('accomplishments'):
@@ -987,7 +1018,24 @@ def _render_experience_section():
                 # Regular editing
                 st.text_input("Position:", value=exp.get('position', ''), key=f"md_exp_pos_{exp_idx}")
                 st.text_input("Company:", value=exp.get('company', ''), key=f"md_exp_comp_{exp_idx}")
-                
+
+                # Edit role summaries
+                role_summaries = exp.get('role_summaries', [])
+                if role_summaries:
+                    st.write("**Role Summaries:**")
+                    for rs_idx, role_summary in enumerate(role_summaries):
+                        col1, col2 = st.columns([5, 1])
+                        with col1:
+                            new_summary = st.text_area(f"Role Summary {rs_idx+1}:", value=role_summary, height=80, key=f"md_exp_rs_{exp_idx}_{rs_idx}")
+                            if new_summary != role_summary:
+                                st.session_state.current_editing_data['experience'][exp_idx]['role_summaries'][rs_idx] = new_summary
+                        with col2:
+                            st.write("")  # spacer
+                            if st.button("🗑️", key=f"md_delete_role_summary_{exp_idx}_{rs_idx}", help="Delete this role summary"):
+                                # Remove the role summary and refresh
+                                st.session_state.current_editing_data['experience'][exp_idx]['role_summaries'].pop(rs_idx)
+                                st.rerun()
+
                 # Edit accomplishments
                 accomplishments = exp.get('accomplishments', [])
                 for acc_idx, acc in enumerate(accomplishments):
@@ -2224,6 +2272,495 @@ def _show_prerequisite_warning(required_step, message):
     st.warning(f"⚠️ **{message}**")
     st.info(f"👈 Please complete **{required_step}** first in the sidebar")
     return True
+
+def cover_letter_page():
+    """Generate cover letter using profile data and job information"""
+    st.header("📝 Generate Cover Letter")
+    st.markdown("**Create a personalized cover letter for your target job**")
+
+    # Initialize session state for cover letter
+    if 'cover_letter_job_info' not in st.session_state:
+        st.session_state.cover_letter_job_info = {}
+    if 'generated_cover_letter' not in st.session_state:
+        st.session_state.generated_cover_letter = ""
+    if 'cover_letter_inputs' not in st.session_state:
+        st.session_state.cover_letter_inputs = {}
+
+    # Job Information Section
+    st.subheader("🏢 Job Information")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Check if job info exists from job matching page
+        existing_company = st.session_state.get('target_company_name', '')
+        existing_title = st.session_state.get('target_job_title', '')
+
+        company_name = st.text_input(
+            "Company Name",
+            value=existing_company,
+            placeholder="e.g., Google, Microsoft, Startup Inc."
+        )
+
+        job_title = st.text_input(
+            "Job Title",
+            value=existing_title,
+            placeholder="e.g., Senior Software Engineer, Product Manager"
+        )
+
+    with col2:
+        # Auto-populate from existing job description if available
+        existing_job_desc = st.session_state.get('target_job_description', '')
+
+        st.markdown("**Job Description**")
+        job_description = st.text_area(
+            "Paste the job description here:",
+            value=existing_job_desc,
+            height=120,
+            placeholder="Paste the full job description or key requirements here..."
+        )
+
+        st.markdown("**More Information About Company (Optional)**")
+        company_info = st.text_area(
+            "Additional company context:",
+            height=100,
+            placeholder="Company culture, recent news, mission, values, or any other relevant information..."
+        )
+
+    st.divider()
+
+    # Cover Letter Customization Section
+    st.subheader("✍️ Customization")
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.markdown("**Key Points to Include**")
+        key_points = st.text_area(
+            "List specific points you want to address:",
+            height=120,
+            placeholder="Examples:\n• Why not having an MS degree isn't a blocker\n• Passion for the company's mission\n• Relevant project experience\n• Career transition reasoning"
+        )
+
+        additional_instructions = st.text_area(
+            "Additional Instructions (optional):",
+            height=80,
+            placeholder="Any specific tone, length, or style preferences..."
+        )
+
+    with col2:
+        st.markdown("**Style**")
+        cover_letter_style = st.radio(
+            "Choose style:",
+            ["Professional", "Personal", "Balanced"],
+            help="Professional: Formal, business-focused\nPersonal: Warm, story-driven\nBalanced: Mix of both"
+        )
+
+    # Generate Button
+    st.divider()
+
+    # Validation before generation
+    can_generate = bool(company_name and job_title and job_description and st.session_state.resume_data)
+
+    if not can_generate:
+        missing_items = []
+        if not company_name: missing_items.append("Company Name")
+        if not job_title: missing_items.append("Job Title")
+        if not job_description: missing_items.append("Job Description")
+        if not st.session_state.resume_data: missing_items.append("Resume Profile")
+
+        st.warning(f"⚠️ Please provide: {', '.join(missing_items)}")
+
+    if st.button("🎯 Generate Cover Letter", type="primary", disabled=not can_generate):
+        # Store inputs for potential regeneration
+        st.session_state.cover_letter_inputs = {
+            'company_name': company_name,
+            'job_title': job_title,
+            'job_description': job_description,
+            'key_points': key_points,
+            'style': cover_letter_style,
+            'additional_instructions': additional_instructions
+        }
+
+        with st.spinner("Generating your personalized cover letter..."):
+            try:
+                generated_letter = _generate_cover_letter(
+                    st.session_state.resume_data,
+                    company_name,
+                    job_title,
+                    job_description,
+                    company_info,
+                    key_points,
+                    cover_letter_style,
+                    additional_instructions
+                )
+                st.session_state.generated_cover_letter = generated_letter
+                st.success("✅ Cover letter generated successfully!")
+
+            except Exception as e:
+                st.error(f"❌ Cover letter generation failed: {str(e)}")
+
+    # Preview and Edit Section
+    if st.session_state.generated_cover_letter:
+        st.divider()
+        st.subheader("📄 Cover Letter Preview & Edit")
+
+        # Editable preview
+        edited_letter = st.text_area(
+            "Edit your cover letter:",
+            value=st.session_state.generated_cover_letter,
+            height=400,
+            help="Make any changes you'd like to the generated cover letter"
+        )
+
+        # Update stored version if edited
+        if edited_letter != st.session_state.generated_cover_letter:
+            st.session_state.generated_cover_letter = edited_letter
+
+        # Regenerate option
+        col1, col2 = st.columns([1, 1])
+
+        with col1:
+            if st.button("🔄 Regenerate", help="Generate a new version with the same inputs"):
+                if st.session_state.cover_letter_inputs:
+                    with st.spinner("Regenerating cover letter..."):
+                        try:
+                            inputs = st.session_state.cover_letter_inputs
+                            new_letter = _generate_cover_letter(
+                                st.session_state.resume_data,
+                                inputs['company_name'],
+                                inputs['job_title'],
+                                inputs['job_description'],
+                                inputs.get('company_info', ''),
+                                inputs['key_points'],
+                                inputs['style'],
+                                inputs['additional_instructions']
+                            )
+                            st.session_state.generated_cover_letter = new_letter
+                            st.success("✅ New cover letter generated!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Regeneration failed: {str(e)}")
+
+        with col2:
+            # Copy to clipboard functionality (placeholder)
+            st.button("📋 Copy to Clipboard", help="Copy cover letter text (implementation needed)")
+
+    # Answer a Question Section
+    st.divider()
+    st.header("❓ Answer a Question")
+    st.markdown("**Answer specific questions that companies ask during application process**")
+
+    # Initialize session state for question answering
+    if 'generated_answer' not in st.session_state:
+        st.session_state.generated_answer = ""
+    if 'answer_inputs' not in st.session_state:
+        st.session_state.answer_inputs = {}
+
+    # Question input
+    st.subheader("📝 Question & Customization")
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        question_text = st.text_area(
+            "Question to Answer:",
+            height=100,
+            placeholder="Example: Why are you interested in this role? Tell us about a time you overcame a challenge. Why do you want to work at our company?"
+        )
+
+        answer_key_points = st.text_area(
+            "Key Points to Include:",
+            height=100,
+            placeholder="Examples:\n• Specific experience that relates to the question\n• Personal motivation or passion\n• Concrete examples or metrics\n• Connection to company values"
+        )
+
+        answer_additional_instructions = st.text_area(
+            "Additional Instructions (optional):",
+            height=80,
+            placeholder="Tone preferences, specific examples to mention, length requirements..."
+        )
+
+    with col2:
+        st.markdown("**Style**")
+        answer_style = st.radio(
+            "Choose answer style:",
+            ["Professional", "Personal", "Balanced"],
+            key="answer_style",
+            help="Professional: Formal, achievement-focused\nPersonal: Story-driven, authentic\nBalanced: Mix of both"
+        )
+
+    # Validation for answer generation
+    can_generate_answer = bool(question_text and company_name and job_description and st.session_state.resume_data)
+
+    if not can_generate_answer:
+        missing_items = []
+        if not question_text: missing_items.append("Question")
+        if not company_name: missing_items.append("Company Name")
+        if not job_description: missing_items.append("Job Description")
+        if not st.session_state.resume_data: missing_items.append("Resume Profile")
+
+        st.warning(f"⚠️ Please provide: {', '.join(missing_items)}")
+
+    # Generate Answer Button
+    if st.button("🎯 Generate Answer", type="primary", disabled=not can_generate_answer):
+        # Store inputs for potential regeneration
+        st.session_state.answer_inputs = {
+            'question_text': question_text,
+            'company_name': company_name,
+            'job_title': job_title,
+            'job_description': job_description,
+            'company_info': company_info,
+            'key_points': answer_key_points,
+            'style': answer_style,
+            'additional_instructions': answer_additional_instructions
+        }
+
+        with st.spinner("Generating your answer..."):
+            try:
+                generated_answer = _generate_question_answer(
+                    st.session_state.resume_data,
+                    question_text,
+                    company_name,
+                    job_title,
+                    job_description,
+                    company_info,
+                    answer_key_points,
+                    answer_style,
+                    answer_additional_instructions
+                )
+                st.session_state.generated_answer = generated_answer
+                st.success("✅ Answer generated successfully!")
+
+            except Exception as e:
+                st.error(f"❌ Answer generation failed: {str(e)}")
+
+    # Answer Preview and Edit Section
+    if st.session_state.generated_answer:
+        st.divider()
+        st.subheader("📄 Answer Preview & Edit")
+
+        # Editable preview
+        edited_answer = st.text_area(
+            "Edit your answer:",
+            value=st.session_state.generated_answer,
+            height=300,
+            help="Make any changes you'd like to the generated answer"
+        )
+
+        # Update stored version if edited
+        if edited_answer != st.session_state.generated_answer:
+            st.session_state.generated_answer = edited_answer
+
+        # Regenerate option for answer
+        col1, col2 = st.columns([1, 1])
+
+        with col1:
+            if st.button("🔄 Regenerate Answer", help="Generate a new version with the same inputs"):
+                if st.session_state.answer_inputs:
+                    with st.spinner("Regenerating answer..."):
+                        try:
+                            inputs = st.session_state.answer_inputs
+                            new_answer = _generate_question_answer(
+                                st.session_state.resume_data,
+                                inputs['question_text'],
+                                inputs['company_name'],
+                                inputs['job_title'],
+                                inputs['job_description'],
+                                inputs['company_info'],
+                                inputs['key_points'],
+                                inputs['style'],
+                                inputs['additional_instructions']
+                            )
+                            st.session_state.generated_answer = new_answer
+                            st.success("✅ New answer generated!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Answer regeneration failed: {str(e)}")
+
+        with col2:
+            # Copy to clipboard functionality (placeholder)
+            st.button("📋 Copy Answer", help="Copy answer text (implementation needed)")
+
+def _generate_cover_letter(resume_data, company_name, job_title, job_description, company_info, key_points, style, additional_instructions):
+    """Generate cover letter using AI based on resume data and job requirements"""
+    import json
+    from openai import OpenAI
+    import os
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+    # Extract key info from resume
+    contact_info = resume_data.get('contact', {})
+    name = contact_info.get('name', 'Your Name')
+    experience = resume_data.get('experience', [])
+    skills = resume_data.get('skills', {})
+    projects = resume_data.get('projects', [])
+
+    # Build context about the candidate
+    experience_summary = []
+    for exp in experience[:3]:  # Top 3 experiences
+        role = exp.get('position', 'Role')
+        company = exp.get('company', 'Company')
+        accomplishments = exp.get('accomplishments', [])[:2]  # Top 2 accomplishments
+        experience_summary.append(f"{role} at {company}: {'; '.join(accomplishments)}")
+
+    project_summary = [f"{proj.get('name', 'Project')}: {'; '.join(proj.get('descriptions', [])[:1])}" for proj in projects[:2]]
+
+    # Style-specific instructions
+    style_instructions = {
+        'Professional': "Use formal business language, focus on qualifications and achievements. Be concise and direct.",
+        'Personal': "Use a warm, conversational tone. Include personal motivations and passion. Tell a story.",
+        'Balanced': "Mix professional achievements with personal motivation. Be approachable yet competent."
+    }
+
+    # Include company info in context if provided
+    company_context = f"\nCompany Context: {company_info}" if company_info.strip() else ""
+
+    prompt = f"""
+    Write a compelling cover letter for this job application.
+
+    CANDIDATE INFO:
+    Name: {name}
+    Top Experience: {' | '.join(experience_summary[:2])}
+    Key Projects: {' | '.join(project_summary)}
+    Skills: {', '.join(list(skills.get('technical', []))[:8])}
+
+    JOB DETAILS:
+    Company: {company_name}
+    Position: {job_title}
+    Job Description: {job_description[:1000]}{company_context}
+
+    SPECIFIC POINTS TO ADDRESS:
+    {key_points}
+
+    STYLE: {style} - {style_instructions.get(style, '')}
+
+    ADDITIONAL INSTRUCTIONS:
+    {additional_instructions}
+
+    REQUIREMENTS:
+    - Write 3-4 paragraphs
+    - Start with engaging opening that shows knowledge of company
+    - Address specific job requirements with concrete examples
+    - Include the key points naturally
+    - End with strong closing and call to action
+    - Use plain text format (NO MARKDOWN)
+    - Keep professional yet engaging tone
+    - Maximum 400 words
+
+    Return only the cover letter text, no extra formatting or labels.
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,  # Higher for more creativity
+            max_tokens=600
+        )
+
+        cover_letter = response.choices[0].message.content.strip()
+
+        # Clean up any unwanted formatting
+        cover_letter = cover_letter.replace('```', '').replace('**', '').replace('*', '')
+
+        return cover_letter
+
+    except Exception as e:
+        raise Exception(f"AI generation failed: {str(e)}")
+
+def _generate_question_answer(resume_data, question_text, company_name, job_title, job_description, company_info, key_points, style, additional_instructions):
+    """Generate answer to a specific question using AI based on resume data and job context"""
+    from openai import OpenAI
+    import os
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+    # Extract key info from resume
+    contact_info = resume_data.get('contact', {})
+    name = contact_info.get('name', 'Your Name')
+    experience = resume_data.get('experience', [])
+    skills = resume_data.get('skills', {})
+    projects = resume_data.get('projects', [])
+
+    # Build context about the candidate
+    experience_summary = []
+    for exp in experience[:3]:  # Top 3 experiences
+        role = exp.get('position', 'Role')
+        company = exp.get('company', 'Company')
+        accomplishments = exp.get('accomplishments', [])[:2]  # Top 2 accomplishments
+        experience_summary.append(f"{role} at {company}: {'; '.join(accomplishments)}")
+
+    project_summary = [f"{proj.get('name', 'Project')}: {'; '.join(proj.get('descriptions', [])[:1])}" for proj in projects[:2]]
+
+    # Style-specific instructions for answers
+    style_instructions = {
+        'Professional': "Use formal language, focus on concrete achievements and qualifications. Be results-oriented.",
+        'Personal': "Use authentic, story-driven language. Share personal insights and motivations. Be relatable.",
+        'Balanced': "Mix professional achievements with personal perspective. Be both competent and approachable."
+    }
+
+    # Include company info in context if provided
+    company_context = f"\nCompany Context: {company_info}" if company_info.strip() else ""
+
+    prompt = f"""
+    Answer this specific question for a job application.
+
+    QUESTION TO ANSWER:
+    {question_text}
+
+    CANDIDATE INFO:
+    Name: {name}
+    Top Experience: {' | '.join(experience_summary[:2])}
+    Key Projects: {' | '.join(project_summary)}
+    Skills: {', '.join(list(skills.get('technical', []))[:8])}
+
+    JOB CONTEXT:
+    Company: {company_name}
+    Position: {job_title}
+    Job Description: {job_description[:800]}{company_context}
+
+    SPECIFIC POINTS TO INCLUDE:
+    {key_points}
+
+    STYLE: {style} - {style_instructions.get(style, '')}
+
+    ADDITIONAL INSTRUCTIONS:
+    {additional_instructions}
+
+    REQUIREMENTS:
+    - Write 2 small paragraphs maximum
+    - Directly answer the question asked
+    - Use specific examples from candidate's experience
+    - Connect answer to the job/company context
+    - Include the key points naturally
+    - Use plain text format (NO MARKDOWN)
+    - Be concise but impactful
+    - Maximum 200 words
+
+    Return only the answer text, no extra formatting or labels.
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,  # Higher for more creativity
+            max_tokens=400
+        )
+
+        answer = response.choices[0].message.content.strip()
+
+        # Clean up any unwanted formatting
+        answer = answer.replace('```', '').replace('**', '').replace('*', '')
+
+        return answer
+
+    except Exception as e:
+        raise Exception(f"AI generation failed: {str(e)}")
 
 if __name__ == "__main__":
     main()
