@@ -59,8 +59,11 @@ class RenderCVRenderer:
             # Save YAML file
             # pdb.set_trace()
             yaml_file_path = os.path.join("test_folder", 'resume.yaml')
+            
             with open(yaml_file_path, 'w', encoding='utf-8') as f:
                 yaml.dump(rendercv_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            
+            print(f"YAML file saved to {yaml_file_path}")
             
             # Render using RenderCV command line (which works)
             pdf_bytes = self._render_with_subprocess(yaml_file_path)

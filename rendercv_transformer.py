@@ -134,6 +134,7 @@ class RenderCVTransformer:
             
             # Parse dates
             start_date, end_date = self._parse_duration(exp.get('duration', ''))
+            print(start_date, end_date)
             
             entry = {
                 'company': exp.get('company', ''),
@@ -221,8 +222,8 @@ class RenderCVTransformer:
                 tech_str = ', '.join(proj['technologies'])
                 highlights.append(f"Technologies: {tech_str}")
             
-            if proj.get('achievements'):
-                highlights.extend(proj['achievements'])
+            # if proj.get('achievements'):
+            #     highlights.extend(proj['achievements'])
             
             # RenderCV NormalEntry requires name field
             project_name = proj.get('name', '')
@@ -319,9 +320,15 @@ class RenderCVTransformer:
             return '', ''
         
         parts = duration_str.split(' - ')
+        if '–' in duration_str:  # Handle en-dash
+            parts = duration_str.split(' – ')
+        if '-' in duration_str:  # Handle hyphen
+            parts = duration_str.split(' - ')
+        print(parts)
         if len(parts) >= 2:
             start_date = self._normalize_date(parts[0].strip())
             end_date_str = parts[1].strip()
+            print(end_date_str)
             
             if end_date_str.lower() in ['present', 'current', 'now']:
                 end_date = 'present'

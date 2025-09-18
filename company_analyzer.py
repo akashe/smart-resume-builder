@@ -98,7 +98,7 @@ class CompanyAnalyzer:
             "company_type": company_type,
             "confidence": self._calculate_confidence(job_description, company_type),
             "values_scores": values_scores,
-            "top_values": self._get_top_values(values_scores),
+            "top_values": ai_analysis.get("top_values", {}),
             "hiring_manager_signals": ai_analysis.get("hiring_manager_type", "unknown"),
             "red_flags": ai_analysis.get("red_flags", []),
             "golden_signals": ai_analysis.get("golden_signals", []),
@@ -154,29 +154,29 @@ class CompanyAnalyzer:
     def _ai_deep_analysis(self, job_description: str, company_name: str) -> Dict[str, Any]:
         """Use AI to extract subtle cultural indicators and preferences"""
         
-        prompt = f"""
-        Analyze this job description and return valid JSON only.
-        
+        prompt = f"""        
+        Your job is to parse through a JD and create a valid JSON. The most important signal that you have to capture are the golden signals.
+        There are two things most common in Js. First is where they tell the roles and responsibilities. Second is what sort of experience and skills they are looking for.
+        Golden signals capture the things mentioned in those two sections in a strucutred way so that LLMs can leverage it later.
+        Red flags are things that would make a candidate less likely to succeed in this company.
+        Top values are the values that the company seems to prioritize the most based on the JD.
+        Emphasize are the things that a candidate should emphasize in summary for a role.
+
+        Golden signals will be used to enhance accomplishments for a role. This will nudge the resume to individual skills needed for the role.
+        Values will be used to enhance resume summary. This nudge the personal summary to align with company values.
+        Emphasize will be used to enhance a role summary. This will align individual role summary so that the summary of each role looks valuable to recruiter.
+
+
         Company: {company_name}
-        Job Description: {job_description[:2000]}
+        Job Description: {job_description}
         
-        Return this exact JSON structure (no additional text):
+        Output JSON structure:
         {{
             "company_type": "startup | enterprise | big_tech | consulting | finance | healthtech | tech ",
-            "hiring_manager_type": "technical_leader",
-            "red_flags": ["Experimental technologies without proven results", "Lack of collaborative experience"],
-            "golden_signals": ["System design thinking", "Cross-team collaboration"],
-            "hidden_preferences": {{
-                "prefers_generalists_vs_specialists": "balanced",
-                "values_depth_vs_breadth": "balanced",
-                "innovation_tolerance": "medium",
-                "risk_tolerance": "moderate"
-            }},
-            "language_preferences": {{
-                "avoid_phrases": ["bleeding edge", "quick hack"],
-                "golden_phrases": ["scalable", "maintainable"],
-                "technical_depth_expected": "medium"
-            }}
+            "red_flags": ["Experimental technologies without proven results", "Lack of collaborative experience", ...],
+            "golden_signals": ["System design thinking", "Cross-team collaboration", ...],
+            "top_values": ["innovation", "scale", ...],
+            "emphasize": ["ownership", "impact", ...],
         }}
         """
         
@@ -206,9 +206,12 @@ class CompanyAnalyzer:
                 
                 # Fallback: create a basic response
                 return {
+                    "company_type": "tech",
                     "hiring_manager_type": "business_focused",
                     "red_flags": ["Unable to parse AI response"],
                     "golden_signals": ["Standard professional experience"],
+                    "top_values": ["innovation", "scale"],
+                    "emphasize": ["ownership", "impact"],
                     "hidden_preferences": {
                         "prefers_generalists_vs_specialists": "balanced",
                         "values_depth_vs_breadth": "balanced",
@@ -225,9 +228,12 @@ class CompanyAnalyzer:
         except Exception as e:
             print(f"AI analysis failed: {e}")
             return {
+                "company_type": "tech",
                 "hiring_manager_type": "unknown",
                 "red_flags": ["Analysis unavailable"],
                 "golden_signals": ["Standard professional experience"],
+                "top_values": ["innovation", "scale"],
+                "emphasize": ["ownership", "impact"],
                 "hidden_preferences": {
                     "prefers_generalists_vs_specialists": "balanced",
                     "values_depth_vs_breadth": "balanced", 

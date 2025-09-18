@@ -1259,7 +1259,7 @@ def _generate_enhanced_content_for_all_sections(resume_data, job_description, co
         # AI enhance each sentence with verb tracking
         enhanced_sentences = []
         update_progress(f"🔤 Enhancing summary sentences")
-        enhanced_sentences = _enhance_content_with_targeted_strategy(
+        enhanced_sentences, used_verbs = _enhance_content_with_targeted_strategy(
             sentences,
             job_description,
             company_analysis,
@@ -1320,18 +1320,18 @@ def _generate_enhanced_content_for_all_sections(resume_data, job_description, co
             accomplishments = exp.get('accomplishments', [])
             if accomplishments:
                 update_progress(f"🎯 Enhancing {len(accomplishments)} accomplishments for {exp_name}")
-                for i, accomplishment in enumerate(accomplishments):
-                    enhanced_acc = _enhance_content_with_targeted_strategy(
-                        accomplishment,
-                        job_description,
-                        company_analysis,
-                        "accomplishment",
-                        used_verbs,
-                        job_keywords,
-                        tech_keywords
-                    )
-                    enhanced_exp['accomplishments']['enhanced'].append(enhanced_acc)
-                    update_progress(f"✅ Accomplishment {i+1} enhanced for {exp_name}", item_completed=True)
+                
+                enhanced_acc, used_verbs = _enhance_content_with_targeted_strategy(
+                    accomplishments,
+                    job_description,
+                    company_analysis,
+                    "accomplishment",
+                    used_verbs,
+                    job_keywords,
+                    tech_keywords
+                )
+                enhanced_exp['accomplishments']['enhanced'] = enhanced_acc
+                update_progress(f"✅ Accomplishments enhanced for {exp_name}", item_completed=True)
             
             if not role_summaries and not accomplishments:
                 update_progress(f"⏭️ Skipping {exp_name} (no content to enhance)")
@@ -1341,7 +1341,7 @@ def _generate_enhanced_content_for_all_sections(resume_data, job_description, co
         # Enhance all role summaries in one go to maintain context
         if all_role_summaries:
             update_progress(f"🔤 Enhancing all {len(all_role_summaries)} role summaries")
-            enhanced_role_summaries = _enhance_content_with_targeted_strategy(
+            enhanced_role_summaries, used_verbs = _enhance_content_with_targeted_strategy(
                 all_role_summaries,
                 job_description,
                 company_analysis,
@@ -1381,7 +1381,7 @@ def _generate_enhanced_content_for_all_sections(resume_data, job_description, co
                 update_progress(f"🔤 Enhancing {len(descriptions)} descriptions for {proj_name}")
                 for i, description in enumerate(descriptions):
                     update_progress(f"🔤 Description {i+1}/{len(descriptions)} for {proj_name}")
-                    enhanced_desc = _enhance_content_with_targeted_strategy(
+                    enhanced_desc, used_verbs = _enhance_content_with_targeted_strategy(
                         description,
                         job_description,
                         company_analysis,
@@ -1472,7 +1472,6 @@ def _enhance_profile_summary(content, job_description, company_analysis, used_ve
 
         company_type = company_analysis.get('company_type', 'tech')
         top_values = company_analysis.get('top_values', [])
-        hidden_preferences = company_analysis.get('hidden_preferences', {})
         used_verbs_list = list(used_verbs) if used_verbs else []
 
         prompt = f"""
@@ -1483,8 +1482,7 @@ def _enhance_profile_summary(content, job_description, company_analysis, used_ve
         Original: "{content}"
 
         TARGET COMPANY: {company_type}
-        KEY VALUES: {', '.join(top_values[:3])}
-        HIDDEN PREFERENCES: {hidden_preferences}
+        KEY VALUES: {', '.join(top_values)}
 
         VERB TRACKING: Avoid these used verbs: {', '.join(used_verbs_list)}
 
@@ -1526,14 +1524,24 @@ def _enhance_role_accomplishment(content, job_description, company_analysis, use
         model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
         company_type = company_analysis.get('company_type', 'tech')
+        golden_signals = company_analysis.get('golden_signals', [])
         used_verbs_list = list(used_verbs) if used_verbs else []
 
         prompt = f"""
-        Enhance this accomplishment to highlight skills and technologies needed for the target role.
+        You will be a list of accomplishments of a candidate in a role they had.
+        Each item in the list is work that they did or thing that they want to highlight about their role.
+        They want to leverage your expertise to enhance these accomplishments to better align with the job they are applying for.
+        You will be give information about the type of company. What skills and qualities the company values as their golden signals. 
+
+        Your job is to enhance all the accomplishments in one go to avoid same enhancemnents across all accomplishments.
+        You have to enhance the accomplishments in such a way that as a whole they are holistic, shows the candidate in best light and reflect the required skills in the accomplishments.
+
+        You are given a total of {len(content)} role summaries to enhance.
+        You should not create new role summaries, only enhance the ones given to you with the original key mapping.
 
         Original: "{content}"
 
-        TARGET ROLE NEEDS: {', '.join(job_keywords[:8])}
+        TARGET ROLE GOLDEN SIGNALS: {golden_signals}
         COMPANY TYPE: {company_type}
         USED VERBS: {', '.join(used_verbs_list)}
 
@@ -1541,26 +1549,25 @@ def _enhance_role_accomplishment(content, job_description, company_analysis, use
         1. QUANTIFY impact with specific metrics where possible
         2. Highlight TECHNICAL SKILLS that match job requirements
         3. Emphasize RESULTS and measurable outcomes
-        4. Use action verbs that haven't been used before
+        4. Only use action verbs that haven't been used before to avoid verb repition across sections
         5. Keep focus on what YOU achieved specifically
         6. Match terminology to job posting language
-        7. Stay factual and specific
-        8. Maximum 1 sentence, powerful and concise
+        7. Maximum 1 sentence, powerful and CONCISE! Dont use 1 sentence as an execuse to have long sentences.
 
-        Return JSON: {{"enhanced_content": "quantified accomplishment", "action_verb_used": "verb"}}
+        Return JSON: {{"enhanced_content": ["enhanced accomplishment 1", "enhanced accomplishment 2"...], "action_verbs_used": ["verb 1", "verb 2"...]}}
         """
 
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4,
-            max_tokens=200
+            max_tokens=2500
         )
 
-        return _parse_enhancement_response(response, content, used_verbs)
+        return _parse_enhancement_response(response, content, used_verbs, type= "list")
 
     except Exception as e:
-        print(f"Accomplishment enhancement failed: {e}")
+        print(f"Accomplishment enhancement failed: {e}, Input = {input}")
         return content
 
 def _enhance_role_summary(content, job_description, company_analysis, used_verbs):
@@ -1575,9 +1582,9 @@ def _enhance_role_summary(content, job_description, company_analysis, used_verbs
         model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
         company_type = company_analysis.get('company_type', 'tech')
-        golden_signals = company_analysis.get('golden_signals', [])
-        positioning_advice = company_analysis.get('positioning_advice', {})
-        emphasize_points = positioning_advice.get('emphasize', [])
+        # golden_signals = company_analysis.get('golden_signals', [])
+        # positioning_advice = company_analysis.get('positioning_advice', {})
+        emphasize_points = company_analysis.get('emphasize', [])
         used_verbs_list = list(used_verbs) if used_verbs else []
 
         expected_output = '{"enhanced_content": {"0": "enhanced summary 1", "1": "enhanced summary 2", ..}, "action_verbs_used": ["verb 1", "verb 2"...]}'
@@ -1597,7 +1604,6 @@ def _enhance_role_summary(content, job_description, company_analysis, used_verbs
 
         Original: "{content}"
 
-        COMPANY LOVES: {', '.join(golden_signals)}
         EMPHASIZE: {', '.join(emphasize_points)}
         COMPANY TYPE: {company_type}
         USED VERBS: {', '.join(used_verbs_list)}
@@ -1640,25 +1646,22 @@ def _enhance_project_description(content, job_description, company_analysis, use
         model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
         company_type = company_analysis.get('company_type', 'tech')
+        golden_signals = company_analysis.get('golden_signals', [])
         used_verbs_list = list(used_verbs) if used_verbs else []
 
         prompt = f"""
-        Enhance this project description to highlight relevant technologies and technical approach.
+        Enhance this personal project description so that it is intriguing to reader.
+        The final description should not be more than one sentence.
+        And within one sentence you have to highlight what the project is about and highlight any scale data or technological information if available.
+        If possible try to nudge the description to align with the tech stack used by the company.
+        Avoid the verbs that have been used already to give a diverse language.
 
         Original: "{content}"
 
-        TARGET TECH STACK: {', '.join(tech_keywords[:6])}
+        TARGET TECH STACK: {', '.join(tech_keywords)}
+        SIGNALS SOUGHT BY COMPANY: {golden_signals}
         COMPANY TYPE: {company_type}
         USED VERBS: {', '.join(used_verbs_list)}
-
-        PROJECT DESCRIPTION RULES:
-        1. MAXIMUM 2 sentences - be extremely concise
-        2. Highlight TECHNOLOGIES that match the job posting
-        3. Focus on TECHNICAL CHALLENGES solved
-        4. Mention PROJECT SCALE or technical complexity
-        5. Emphasize personal TECHNICAL CONTRIBUTION
-        6. Use modern, relevant technical terminology
-        7. Show problem-solving approach if space allows
 
         Return JSON: {{"enhanced_content": "concise tech-focused description", "action_verb_used": "verb"}}
         """
@@ -1666,7 +1669,7 @@ def _enhance_project_description(content, job_description, company_analysis, use
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
+            temperature=0.1,
             max_tokens=200
         )
 
@@ -1762,7 +1765,7 @@ def _parse_enhancement_response(response, original_content, used_verbs, type = N
                 used_verbs.add(verb.lower())
 
 
-        return enhanced_content
+        return enhanced_content, used_verbs
 
     except json.JSONDecodeError:
         # Try to extract content from malformed JSON
