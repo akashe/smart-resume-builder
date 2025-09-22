@@ -69,7 +69,7 @@ def main():
     if st.session_state.resume_data:
         pages.append("📝 Generate Cover Letter")
 
-    page = st.sidebar.radio("Choose a step:", pages, help="Complete steps in order for best results")
+    page = st.sidebar.radio("Choose a step:", pages, help="Navigate between any steps. AI Job Matching offers flexible workflow options.")
     
     # Check for OpenAI API key
     if not os.getenv("OPENAI_API_KEY"):
@@ -530,32 +530,50 @@ def job_matching_page():
     
     st.markdown("---")
     
-    # Initialize workflow state
-    if 'workflow_step' not in st.session_state:
-        st.session_state.workflow_step = 1
+    # Initialize session state for job context
     if 'enhanced_content' not in st.session_state:
         st.session_state.enhanced_content = None
-    
-    # Progress indicator
-    col1, col2, col3 = st.columns(3)
+
+    # Step 0: Job Context Input (always available)
+    st.subheader("📋 Step 0: Job Context")
+    st.markdown("*Provide job details that will be used for AI enhancement and matching*")
+
+    col1, col2 = st.columns(2)
     with col1:
-        status1 = "✅" if st.session_state.workflow_step > 1 else "🔄" if st.session_state.workflow_step == 1 else "⏳"
-        st.write(f"{status1} **Step 1:** AI Enhance Content")
+        company_name = st.text_input("Company Name:",
+                                   value=st.session_state.get('target_company_name', ''),
+                                   placeholder="e.g., Google, Stripe, Microsoft")
+        job_title = st.text_input("Job Title/Designation:",
+                                 value=st.session_state.get('target_job_title', ''),
+                                 placeholder="e.g., Software Engineer, Data Scientist")
     with col2:
-        status2 = "✅" if st.session_state.workflow_step > 2 else "🔄" if st.session_state.workflow_step == 2 else "⏳"
-        st.write(f"{status2} **Step 2:** Review & Edit")
-    with col3:
-        status3 = "✅" if st.session_state.workflow_step > 3 else "🔄" if st.session_state.workflow_step == 3 else "⏳"
-        st.write(f"{status3} **Step 3:** AI Select Best")
-    
+        job_description = st.text_area("Job Description:",
+                                     value=st.session_state.get('target_job_description', ''),
+                                     height=120,
+                                     placeholder="Paste the full job description here...")
+
+    # Store job context in session state
+    if company_name or job_title or job_description:
+        st.session_state.target_company_name = company_name
+        st.session_state.target_job_title = job_title
+        st.session_state.target_job_description = job_description
+
     st.divider()
-    
-    # Step-specific content
-    if st.session_state.workflow_step == 1:
+
+    # Optional Steps Section
+    st.subheader("🎯 Optional AI Enhancement Steps")
+    st.markdown("*Complete any of these steps in any order. Each step is independent.*")
+
+    # Create tabs for the optional steps
+    tab1, tab2, tab3 = st.tabs(["🔧 AI Enhance Content", "✏️ Review Enhanced Content", "🎯 AI Job Matching"])
+
+    with tab1:
         _render_step1_enhance_content()
-    elif st.session_state.workflow_step == 2:
+
+    with tab2:
         _render_step2_review_enhancements()
-    elif st.session_state.workflow_step == 3:
+
+    with tab3:
         _render_step3_generate_matched_resume()
     
 
@@ -1152,20 +1170,20 @@ def _generate_markdown_from_sections():
 
 def _render_step1_enhance_content():
     """Step 1: AI enhances all resume content"""
-    st.subheader("🔧 Step 1: AI Content Enhancement")
-    st.markdown("*AI will improve the language and impact of all your resume content*")
-    
-    # Job info input for context
-    col1, col2 = st.columns(2)
-    with col1:
-        company_name = st.text_input("Company Name:", placeholder="e.g., Google, Stripe, Microsoft", key="step1_company")
-    with col2:
-        job_title = st.text_input("Job Title/Designation:", placeholder="e.g., Software Engineer, Data Scientist", key="step1_job_title")
-    
-    job_description = st.text_area("Job Description:", placeholder="Paste the job posting here...", height=150, key="step1_job_desc")
-    
-    if company_name.strip() and job_title.strip() and job_description.strip():
-        if st.button("🚀 Enhance All Content", type="primary"):
+    st.markdown("*AI will improve the language and impact of all your resume content using the job context from Step 0*")
+
+    # Use job context from Step 0
+    company_name = st.session_state.get('target_company_name', '')
+    job_title = st.session_state.get('target_job_title', '')
+    job_description = st.session_state.get('target_job_description', '')
+
+    if not (company_name.strip() and job_title.strip() and job_description.strip()):
+        st.warning("⚠️ Please complete Step 0 (Job Context) first to provide company name, job title, and job description.")
+        return
+
+    st.info(f"🎯 **Enhancement Context:** {job_title} at {company_name}")
+
+    if st.button("🚀 Enhance All Content", type="primary"):
             # Create progress tracking containers
             progress_container = st.container()
             progress_bar = progress_container.progress(0)
@@ -1226,14 +1244,11 @@ def _render_step1_enhance_content():
                 # Store enhanced content
                 st.session_state.enhanced_content = enhanced_content
                 st.session_state.company_analysis = company_analysis
-                
-                # Move to next step
-                st.session_state.workflow_step = 2
-                
+
                 progress_bar.progress(100)
                 status_text.text("✅ AI enhancement complete!")
-                st.success("✅ All content enhanced! Moving to review step...")
-                st.rerun()
+                st.success("✅ All content enhanced! You can now review it in the 'Review Enhanced Content' tab or proceed to other steps.")
+                st.balloons()
                     
             except Exception as e:
                 st.error(f"Enhancement failed: {str(e)}")
@@ -1550,7 +1565,7 @@ def _enhance_profile_summary(content, job_description, company_analysis, used_ve
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
+            temperature=0.05,
             max_tokens=200
         )
 
@@ -1608,7 +1623,7 @@ def _enhance_role_accomplishment(content, job_description, company_analysis, use
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
+            temperature=0.05,
             max_tokens=2500
         )
 
@@ -1671,7 +1686,7 @@ def _enhance_role_summary(content, job_description, company_analysis, used_verbs
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
+            temperature=0.05,
             max_tokens=500,
 
         )
@@ -1717,7 +1732,7 @@ def _enhance_project_description(content, job_description, company_analysis, use
         response = client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
+            temperature=0.05,
             max_tokens=200
         )
 
@@ -2074,46 +2089,43 @@ def _render_step2_review_enhancements():
                     'descriptions': approved_project_descriptions
                 }
     
-    # Navigation buttons
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("← Back to Step 1"):
-            st.session_state.workflow_step = 1
-            st.rerun()
-    
-    with col2:
-        if st.button("Continue to Step 3 →", type="primary"):
-            st.session_state.workflow_step = 3
-            st.success("✅ Enhanced content approved! Moving to AI selection...")
-            st.rerun()
+    # Info about next steps
+    st.info("💡 **Next Steps:** You can now proceed to the 'AI Job Matching' tab to select the best content, or go directly to 'Review & Finalize' to edit your resume.")
 
 def _render_step3_generate_matched_resume():
     """Step 3: AI selects best content mix for target job"""
-    st.subheader("🎯 Step 3: AI Selection from Enhanced Content")
-    st.markdown("*AI will now select the best combination of your approved enhanced content for this specific job.*")
-    
-    if not st.session_state.get('approved_content'):
-        st.error("No approved content available. Please complete Step 2 first.")
-        if st.button("← Back to Step 2"):
-            st.session_state.workflow_step = 2
-            st.rerun()
+    st.markdown("*AI will select the best combination of your content for this specific job.*")
+
+    # Check if we have job context
+    if not st.session_state.get('target_job_description'):
+        st.warning("⚠️ Please complete Step 0 (Job Context) first to provide job description for matching.")
         return
-    
-    # Show what's being selected from
-    approved = st.session_state.approved_content
+
+    # Determine data source
+    if st.session_state.get('approved_content'):
+        st.info("📊 **Using Enhanced Content** - AI will select from your reviewed enhanced content")
+        data_source = "enhanced"
+    else:
+        st.info("📋 **Using Original Content** - AI will select from your original resume content")
+        data_source = "original"
     
     if st.button("🎯 Generate Best Match Resume", type="primary"):
         with st.spinner("AI is selecting the optimal content mix..."):
             try:
-                # Use the original matcher but with enhanced content pool
+                # Use the original matcher with appropriate data source
                 matcher = JobMatcher()
-                
-                # Create a temporary resume data structure with approved enhanced content
-                enhanced_resume_data = _create_enhanced_resume_data_structure()
-                
+
+                # Determine which data to use for matching
+                if data_source == "enhanced":
+                    # Create a temporary resume data structure with approved enhanced content
+                    resume_data_for_matching = _create_enhanced_resume_data_structure()
+                else:
+                    # Use original resume data
+                    resume_data_for_matching = st.session_state.resume_data
+
                 # Generate matched content
                 selected_content = matcher.match_resume_to_job(
-                    enhanced_resume_data,
+                    resume_data_for_matching,
                     st.session_state.target_job_description
                 )
                 
@@ -2150,24 +2162,19 @@ def _render_step3_generate_matched_resume():
                                     st.write(f"  • {desc}")
                 
                 # Reset workflow for next use
-                if st.button("🔄 Start New Matching Process"):
-                    st.session_state.workflow_step = 1
+                if st.button("🔄 Clear All AI Data & Start Over"):
                     st.session_state.enhanced_content = None
                     st.session_state.approved_content = None
+                    st.session_state.selected_content = None
+                    st.session_state.final_markdown = ""
+                    st.success("Cleared! You can now start the AI process again.")
                     st.rerun()
-                
+
             except Exception as e:
                 st.error(f"Content selection failed: {str(e)}")
-    
-    # Navigation
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("← Back to Step 2"):
-            st.session_state.workflow_step = 2
-            st.rerun()
-    
-    with col2:
-        st.info("👉 Go to 'Edit Resume Sections' to make final adjustments")
+
+    # Info about next steps
+    st.info("💡 **Next Steps:** Go to 'Review & Finalize' to edit your matched resume or 'Export Resume PDF' to download it.")
 
 def _create_enhanced_resume_data_structure():
     """Create resume data structure from approved enhanced content while preserving manual edits"""
