@@ -414,6 +414,10 @@ class RenderCVTransformer:
             'colors': {
                 'text': 'black',
                 'name': '#004f90'
+            },
+            'links': {
+                'underline': False,  # Remove underline from links
+                'use_external_link_icon': False  # Remove external link icon
             }
         }
         
