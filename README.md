@@ -5,6 +5,8 @@
 [![Streamlit](https://img.shields.io/badge/Built%20with-Streamlit-FF4B4B?logo=streamlit)](https://streamlit.io)
 [![OpenAI](https://img.shields.io/badge/Powered%20by-OpenAI-412991?logo=openai)](https://openai.com)
 
+## 🚀 [Try Live Demo](https://smart-resume-builder.streamlit.app/)
+
 ## What It Does
 
 1. **Upload** your resume (PDF/DOCX)

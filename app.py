@@ -36,7 +36,7 @@ if 'current_profile_name' not in st.session_state:
 
 def main():
     st.set_page_config(
-        page_title="Resume Matcher MVP",
+        page_title="Smart Resume Builder",
         page_icon="📄",
         layout="wide"
     )
