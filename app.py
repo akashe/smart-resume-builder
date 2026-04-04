@@ -47,50 +47,23 @@ def main():
     except Exception as e:
         print(f"Database initialization skipped: {e}")
     
-    # Sidebar navigation with title and status indicators
+    # Sidebar navigation - clean and minimal
     st.sidebar.title("📄 AI Resume Builder")
 
-    # Show helpful hint for first-time users
-    if not st.session_state.resume_data:
-        st.sidebar.info("👉 **Start here:** Click tabs below to navigate through steps")
-
-    st.sidebar.markdown("**Upload → AI Enhance → Export PDF**")
-
-    # Add workflow overview for new users in sidebar
-    _show_workflow_overview()
-
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🚀 Navigation")
-
-    # Fixed page names (no dynamic status emojis to avoid navigation issues)
+    # Fixed page names - NEVER modify this list dynamically to avoid navigation bugs
     pages = [
-        "📤 1. Upload Resume",
-        "🤖 2. AI Enhancement",
-        "📝 3. Review & Edit",
-        "📄 4. Export PDF"
+        "📤 Upload Resume",
+        "🤖 AI Enhancement",
+        "📝 Review & Edit",
+        "📄 Export PDF",
+        "💌 Cover Letter",
+        "❓ Answer Question"
     ]
 
-    # Add cover letter and question answering if profile is loaded
-    if st.session_state.resume_data:
-        pages.append("💌 Cover Letter")
-        pages.append("❓ Answer Question")
-
-    # Show completion status separately
-    status = _get_workflow_status()
-    status_text = "**Progress:** "
-    if status['uploaded']: status_text += "✅ Upload "
-    if status['enhanced']: status_text += "✅ Enhanced "
-    if status['reviewed']: status_text += "✅ Reviewed "
-
-    if status['uploaded'] or status['enhanced'] or status['reviewed']:
-        st.sidebar.markdown(status_text)
-        st.sidebar.markdown("---")
-
     page = st.sidebar.radio(
-        "Choose a step:",
+        "Steps:",
         pages,
-        key="page_selector",
-        help="Follow the steps in order for best results, or jump to any step"
+        key="page_selector"
     )
 
     # Check for OpenAI API key
@@ -99,39 +72,48 @@ def main():
         st.info("Please add `OPENAI_API_KEY=your_key_here` to a .env file in the project root")
         st.stop()
 
-    # Page routing
-    if "1. Upload Resume" in page:
+    # Page routing with guards for pages requiring resume data
+    if "Upload Resume" in page:
         upload_resume_page()
-    elif "2. AI Enhancement" in page:
-        job_matching_page()
-    elif "3. Review & Edit" in page:
-        edit_markdown_page()
-    elif "4. Export PDF" in page:
-        export_pdf_page()
+    elif "AI Enhancement" in page:
+        if not st.session_state.resume_data:
+            st.warning("⚠️ Please upload a resume first")
+            st.info("👉 Go to **'📤 Upload Resume'** to get started")
+        else:
+            job_matching_page()
+    elif "Review & Edit" in page:
+        if not st.session_state.resume_data:
+            st.warning("⚠️ Please upload a resume first")
+            st.info("👉 Go to **'📤 Upload Resume'** to get started")
+        else:
+            edit_markdown_page()
+    elif "Export PDF" in page:
+        if not st.session_state.resume_data:
+            st.warning("⚠️ Please upload a resume first")
+            st.info("👉 Go to **'📤 Upload Resume'** to get started")
+        else:
+            export_pdf_page()
     elif "Cover Letter" in page:
-        cover_letter_page()
+        if not st.session_state.resume_data:
+            st.warning("⚠️ Please upload a resume first")
+            st.info("👉 Go to **'📤 Upload Resume'** to get started")
+        else:
+            cover_letter_page()
     elif "Answer Question" in page:
-        answer_question_page()
+        if not st.session_state.resume_data:
+            st.warning("⚠️ Please upload a resume first")
+            st.info("👉 Go to **'📤 Upload Resume'** to get started")
+        else:
+            answer_question_page()
 
 def upload_resume_page():
-    st.header("📤 Step 1: Upload Resume")
+    st.header("📤 Upload Resume")
 
-    # Welcome screen for first-time users
+    # Simple welcome for first-time users
     if not st.session_state.resume_data:
-        st.success("👋 **Welcome!** Let's build your AI-optimized resume in 3 simple steps")
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.info("**① Upload**\n\nUpload your current resume")
-        with col2:
-            st.info("**② AI Enhance**\n\nPaste job → AI optimizes content")
-        with col3:
-            st.info("**③ Export**\n\nDownload professional PDF")
-
-        st.markdown("---")
-
-    st.markdown("**Upload your resume (PDF/DOCX) - AI will extract all sections automatically**")
-    st.markdown("---")
+        st.info("Upload your resume (PDF/DOCX) → AI extracts all sections automatically")
+    else:
+        st.success("✅ Resume loaded. Navigate to other steps in the sidebar.")
 
     uploaded_file = st.file_uploader(
         "Choose a resume file",
@@ -243,13 +225,7 @@ def upload_resume_page():
                                         st.write(f"**{category.title()}:** {len(skill_list)} skills")
 
                     st.markdown("---")
-                    st.success("✅ **Upload Complete!**")
-                    col1, col2 = st.columns([2, 1])
-                    with col1:
-                        st.info("👉 **Next Step:** Click **'🤖 2. AI Enhancement'** in the sidebar to optimize your resume for a specific job")
-                    with col2:
-                        st.markdown("**Or skip to:**")
-                        st.markdown("• Review & Edit\n• Export PDF")
+                    st.success("✅ Resume parsed! Next: Click **'🤖 AI Enhancement'** in the sidebar to optimize for a job.")
 
                 except Exception as e:
                     st.error(f"Error parsing resume: {str(e)}")
