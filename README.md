@@ -1,89 +1,45 @@
-# Resume Matcher MVP
+# Smart Resume Builder
 
-An end-to-end AI-powered resume optimization platform that **automatically parses your resume, enhances content based on specific job descriptions and target companies, then directly exports professional PDFs** - eliminating manual formatting work. Unlike other tools that only provide enhanced text content, this application delivers a complete workflow from upload to final PDF, saving hours of manual editing and formatting.
+> Upload your resume, paste a job description, get an optimized PDF in minutes.
 
+[![Streamlit](https://img.shields.io/badge/Built%20with-Streamlit-FF4B4B?logo=streamlit)](https://streamlit.io)
+[![OpenAI](https://img.shields.io/badge/Powered%20by-OpenAI-412991?logo=openai)](https://openai.com)
 
-## 🚦 Quick Setup
+## What It Does
 
-1. **Clone the repository**:
-   ```bash
-   git clone <repository-url>
-   cd resume-matcher-mvp
-   ```
+1. **Upload** your resume (PDF/DOCX)
+2. **AI Enhancement** - Paste job description → AI optimizes your content
+3. **Export** professional PDF with your choice of themes
 
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+## Quick Start
 
-3. **Configure environment**:
-   ```bash
-   cp .env.sample .env
-   # Add your OpenAI API key to .env
-   ```
-
-4. **Run the application**:
-   ```bash
-   streamlit run app.py
-   ```
-
-## 📋 Usage Workflow
-
-### **Step 1: Resume Upload & Parsing**
-- Upload PDF/DOCX resume files
-- Automatic content extraction and structuring
-- Validation and error handling
-
-### **Step 2: Edit & Add Information**
-- Review and edit all parsed sections
-- Add multiple variations of accomplishments
-- Manage contact information and skills
-
-### **Step 3: AI Enhancement** 
-- **Enhance**: AI generates improved content variations
-- **Review**: Select which suggestions to approve
-- **Apply**: Chosen enhancements are integrated
-- Global verb tracking ensures diverse language
-
-### **Step 4: Job Matching & Analysis**
-- Paste target job description
-- AI analyzes company culture and requirements
-- Intelligent content selection for optimal fit
-- Positioning recommendations provided
-
-### **Step 5: Final Review & Export**
-- Markdown editor for final content refinement
-- Choose export format and theme
-- Generate professional PDF output
-
-
-## ⚙️ Advanced Features
-
-### **Company Intelligence**
-- Startup vs Enterprise vs Big Tech detection
-- Cultural values analysis and scoring
-- Hidden hiring preferences identification
-- Industry-specific positioning advice
-
-### **AI Content Enhancement**
-- Context-aware content generation
-- Impact-focused accomplishment writing
-- Technical skill positioning
-- Global language diversity tracking
-
-### **Auto generate PDF for the enhanced resume**
-- Professional PDF template generation using RenderCV
-- Advanced typesetting with Typst
-- Theme-based styling system
-
-## 🔧 Configuration Options
-
-### **Environment Variables**
 ```bash
-OPENAI_API_KEY=your_api_key_here
-OPENAI_MODEL=gpt-3.5-turbo  # or gpt-4
+# Clone and install
+git clone https://github.com/akashe/smart-resume-builder.git
+cd smart-resume-builder
+pip install -r requirements.txt
+
+# Add your OpenAI API key
+cp .env.sample .env
+# Edit .env: OPENAI_API_KEY=your_key_here
+
+# Run
+streamlit run app.py
 ```
 
----
+## Features
 
-**Built for modern job seekers** who need intelligent, data-driven resume optimization! 🎯
+- ✅ Smart AI parsing (handles experience, education, projects, skills, custom sections)
+- ✅ Job-specific optimization (matches keywords, adjusts tone)
+- ✅ Professional PDF themes (powered by RenderCV)
+- ✅ Cover letter generator
+- ✅ Company culture analysis
+- ✅ Free to use (bring your own OpenAI API key)
+
+## Cost
+
+~$0.01-0.05 per resume (OpenAI API usage). The app is free.
+
+## License
+
+MIT

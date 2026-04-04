@@ -5,6 +5,8 @@ import PyPDF2
 from typing import Dict, List, Any
 from openai import OpenAI
 import os
+import time
+import json
 
 class ResumeParser:
     def __init__(self):
@@ -194,28 +196,82 @@ class ResumeParser:
             5. Extract ALL variations/details for maximum matching flexibility
             6. For any section not in the standard list (like Internships, Publications, Volunteer, Languages, etc.), add them to "custom_sections" as key-value pairs
             7. Do NOT include "References available upon request" or similar generic statements
+
+            Return ONLY valid JSON, no markdown formatting or code blocks.
             """
-            
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=2000
-            )
-            
-            import json
-            ai_parsed = json.loads(response.choices[0].message.content)
-            
-            # Validate and clean the response
-            return self._validate_ai_parsed_data(ai_parsed)
-            
+
+            # Retry logic with exponential backoff
+            max_retries = 3
+            last_exception = None
+
+            for attempt in range(max_retries):
+                try:
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": prompt}],
+                        response_format={"type": "json_object"},  # Force valid JSON output
+                        temperature=0,  # Deterministic output
+                        max_tokens=4000  # Increased from 2000 for detailed resumes
+                    )
+
+                    # Extract and parse JSON from response
+                    content = response.choices[0].message.content
+                    ai_parsed = self._extract_json_from_response(content)
+
+                    # Validate and clean the response
+                    return self._validate_ai_parsed_data(ai_parsed)
+
+                except json.JSONDecodeError as e:
+                    last_exception = e
+                    print(f"JSON parsing failed on attempt {attempt + 1}/{max_retries}: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s, 4s
+                    continue
+
+                except Exception as e:
+                    last_exception = e
+                    print(f"AI parsing attempt {attempt + 1}/{max_retries} failed: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)  # Exponential backoff
+                    continue
+
+            # All retries failed, fall back to rule-based parsing
+            print(f"All AI parsing attempts failed (last error: {last_exception}), falling back to rule-based parsing")
+            return self._fallback_parse(text)
+
         except Exception as e:
-            print(f"AI parsing failed: {e}, falling back to rule-based parsing")
+            print(f"Unexpected error in AI parsing: {e}, falling back to rule-based parsing")
             return self._fallback_parse(text)
     
+    def _extract_json_from_response(self, content: str) -> Dict[str, Any]:
+        """Extract JSON from AI response, handling markdown code blocks"""
+        content = content.strip()
+
+        # Check if response contains markdown code blocks
+        if '```' in content:
+            # Try to extract JSON from markdown code block
+            match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+            if match:
+                content = match.group(1)
+            else:
+                # Try to find JSON between code blocks
+                match = re.search(r'```[^`]*```\s*(\{.*?\})', content, re.DOTALL)
+                if match:
+                    content = match.group(1)
+
+        # Parse JSON
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            # Try to find JSON object in the content
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match:
+                return json.loads(match.group(0))
+            raise
+
     def _validate_ai_parsed_data(self, ai_parsed: Dict) -> Dict[str, Any]:
         """Validate and clean structured AI-parsed data"""
-        
+
         validated_data = {}
         
         # Contact info - structured object
@@ -511,7 +567,7 @@ class ResumeParser:
         
         return (
             any(line.startswith(indicator) for indicator in bullet_indicators) or
-            (line and line[0].isdigit() and ('.', ')') in line[:3])
+            (line and line[0].isdigit() and ('.' in line[:3] or ')' in line[:3]))
         )
     
     def _clean_bullet_point(self, line: str) -> str:

@@ -49,13 +49,18 @@ def main():
     
     # Sidebar navigation with title and status indicators
     st.sidebar.title("📄 AI Resume Builder")
-    st.sidebar.markdown("**Upload → Edit → AI Enhance → Export PDF**")
+
+    # Show helpful hint for first-time users
+    if not st.session_state.resume_data:
+        st.sidebar.info("👉 **Start here:** Click tabs below to navigate through steps")
+
+    st.sidebar.markdown("**Upload → AI Enhance → Export PDF**")
 
     # Add workflow overview for new users in sidebar
     _show_workflow_overview()
 
     st.sidebar.markdown("---")
-    st.sidebar.subheader("🚀 Quick Start")
+    st.sidebar.subheader("🚀 Navigation")
 
     # Fixed page names (no dynamic status emojis to avoid navigation issues)
     pages = [
@@ -110,26 +115,28 @@ def main():
 
 def upload_resume_page():
     st.header("📤 Step 1: Upload Resume")
+
+    # Welcome screen for first-time users
+    if not st.session_state.resume_data:
+        st.success("👋 **Welcome!** Let's build your AI-optimized resume in 3 simple steps")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.info("**① Upload**\n\nUpload your current resume")
+        with col2:
+            st.info("**② AI Enhance**\n\nPaste job → AI optimizes content")
+        with col3:
+            st.info("**③ Export**\n\nDownload professional PDF")
+
+        st.markdown("---")
+
     st.markdown("**Upload your resume (PDF/DOCX) - AI will extract all sections automatically**")
-    
-    # # Clear explanation of what this page does
-    # st.info("""
-    # **What you'll do here:**
-    
-    # 📄 **Upload your resume** - Support for PDF and DOCX formats
-    
-    # 🤖 **AI parsing** - Automatically extract contact, summary, experience, projects, skills, and education
-    
-    # 👀 **Or Load a saved profile** - Load a saved profile.
-
-    # """)
-
     st.markdown("---")
-    
+
     uploaded_file = st.file_uploader(
         "Choose a resume file",
         type=['pdf', 'docx'],
-        help="Upload PDF or DOCX file"
+        help="Upload PDF or DOCX file. Supports standard resume sections plus custom sections like Publications, Internships, etc."
     )
     
     if uploaded_file is not None:
@@ -234,9 +241,16 @@ def upload_resume_page():
                                 for category, skill_list in skills.items():
                                     if skill_list:
                                         st.write(f"**{category.title()}:** {len(skill_list)} skills")
-                    
-                    st.info("👉 Go to 'Edit Sections' to add variations and modify structured content")
-                    
+
+                    st.markdown("---")
+                    st.success("✅ **Upload Complete!**")
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.info("👉 **Next Step:** Click **'🤖 2. AI Enhancement'** in the sidebar to optimize your resume for a specific job")
+                    with col2:
+                        st.markdown("**Or skip to:**")
+                        st.markdown("• Review & Edit\n• Export PDF")
+
                 except Exception as e:
                     st.error(f"Error parsing resume: {str(e)}")
                     st.exception(e)

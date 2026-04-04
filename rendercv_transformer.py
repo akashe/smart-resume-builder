@@ -1,6 +1,4 @@
 from typing import Dict, Any, List
-import tempfile
-import os
 from datetime import datetime
 import yaml
 import re
@@ -91,39 +89,47 @@ class RenderCVTransformer:
         return networks
     
     def _build_sections(self, resume_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Build all resume sections"""
+        """Build all resume sections dynamically - only include non-empty sections"""
         sections = {}
-        
-        # Summary/Welcome section
+
+        # Summary/Welcome section - only add if has content
         summary_data = resume_data.get('summary', {})
         if 'selected_sentences' in summary_data:
             summary_text = summary_data['selected_sentences']
         else:
             summary_text = summary_data.get('sentences', [])
-        
-        if summary_text:
+
+        if summary_text and len(summary_text) > 0:
             sections['summary'] = summary_text
-        
-        # Experience section
+
+        # Experience section - only add if has valid entries
         experiences = resume_data.get('experience', [])
-        if experiences:
-            sections['experience'] = self._build_experience_entries(experiences)
-        
-        # Education section
+        if experiences and len(experiences) > 0:
+            experience_entries = self._build_experience_entries(experiences)
+            if experience_entries and len(experience_entries) > 0:
+                sections['experience'] = experience_entries
+
+        # Education section - only add if has valid entries
         education = resume_data.get('education', [])
-        if education:
-            sections['education'] = self._build_education_entries(education)
-        
-        # Projects section
+        if education and len(education) > 0:
+            education_entries = self._build_education_entries(education)
+            if education_entries and len(education_entries) > 0:
+                sections['education'] = education_entries
+
+        # Projects section - only add if has valid entries
         projects = resume_data.get('projects', [])
-        if projects:
-            sections['projects'] = self._build_project_entries(projects)
-        
-        # Skills section
+        if projects and len(projects) > 0:
+            project_entries = self._build_project_entries(projects)
+            if project_entries and len(project_entries) > 0:
+                sections['projects'] = project_entries
+
+        # Skills section - only add if has valid entries
         skills_data = resume_data.get('skills', {})
-        if skills_data:
-            sections['skills'] = self._build_skills_entries(skills_data)
-        
+        if skills_data and len(skills_data) > 0:
+            skills_entries = self._build_skills_entries(skills_data)
+            if skills_entries and len(skills_entries) > 0:
+                sections['skills'] = skills_entries
+
         return sections
     
     def _build_experience_entries(self, experiences: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
