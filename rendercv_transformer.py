@@ -25,10 +25,16 @@ class RenderCVTransformer:
             'location': contact.get('city', '') or contact.get('location', '') or 'Location',
             'email': contact.get('email', 'email@example.com'),
             'phone': self._format_phone(contact.get('phone', '')),
-            'website': contact.get('website', 'www.akashe.io'),
             'social_networks': self._build_social_networks(contact),
             'sections': self._build_sections(resume_data)
         }
+
+        # Only add website if it's not empty
+        website = contact.get('website', '').strip()
+        if website and not website.startswith('http'):
+            website = f'https://{website}'
+        if website:
+            cv_data['website'] = website
 
         rendercv_data = {
             'cv': cv_data,

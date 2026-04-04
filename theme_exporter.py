@@ -91,15 +91,15 @@ class ThemeExporter:
         with TypstRenderer() as renderer:
             return renderer.render_resume(resume_data, theme_name)
     
-    def _export_rendercv(self, 
+    def _export_rendercv(self,
                          resume_data: Dict[str, Any],
                          theme_name: str,
                          output_format: str) -> bytes:
         """Export using RenderCV engine"""
-        
+
         if output_format.lower() != 'pdf':
             raise ValueError("RenderCV only supports PDF output")
-        
+
         # Render using RenderCV
         with RenderCVRenderer() as renderer:
             return renderer.render_resume(resume_data, theme_name)

@@ -41,11 +41,8 @@ def main():
         layout="wide"
     )
     
-    # Initialize database (optional feature for profile management)
-    try:
-        init_database()
-    except Exception as e:
-        print(f"Database initialization skipped: {e}")
+    # Initialize database
+    init_database()
     
     # Sidebar navigation with title and status indicators
     st.sidebar.title("📄 AI Resume Builder")
@@ -57,34 +54,24 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.subheader("🚀 Quick Start")
 
-    # Fixed page names (no dynamic status emojis to avoid navigation issues)
+    # Get completion status for each step
+    status = _get_workflow_status()
+
     pages = [
-        "📤 1. Upload Resume",
-        "🤖 2. AI Enhancement",
-        "📝 3. Review & Edit",
-        "📄 4. Export PDF"
+        f"{'✅' if status['uploaded'] else '📤'} 1. Upload Resume",
+        f"{'✅' if status['edited'] else '✏️'} 2. Edit Sections",
+        f"{'✅' if status['enhanced'] else '🤖'} 3. AI Enhancement",
+        f"{'✅' if status['reviewed'] else '📝'} 4. Review & Finalize",
+        f"📄 Export PDF"
     ]
 
-    # Add cover letter and question answering if profile is loaded
+    # Add cover letter option if profile is loaded
     if st.session_state.resume_data:
         pages.append("💌 Cover Letter")
-        pages.append("❓ Answer Question")
-
-    # Show completion status separately
-    status = _get_workflow_status()
-    status_text = "**Progress:** "
-    if status['uploaded']: status_text += "✅ Upload "
-    if status['enhanced']: status_text += "✅ Enhanced "
-    if status['reviewed']: status_text += "✅ Reviewed "
-
-    if status['uploaded'] or status['enhanced'] or status['reviewed']:
-        st.sidebar.markdown(status_text)
-        st.sidebar.markdown("---")
 
     page = st.sidebar.radio(
         "Choose a step:",
         pages,
-        key="page_selector",
         help="Follow the steps in order for best results, or jump to any step"
     )
 
@@ -97,16 +84,16 @@ def main():
     # Page routing
     if "1. Upload Resume" in page:
         upload_resume_page()
-    elif "2. AI Enhancement" in page:
+    elif "2. Edit Sections" in page:
+        edit_sections_page()
+    elif "3. AI Enhancement" in page:
         job_matching_page()
-    elif "3. Review & Edit" in page:
+    elif "4. Review & Finalize" in page:
         edit_markdown_page()
-    elif "4. Export PDF" in page:
+    elif "Export PDF" in page:
         export_pdf_page()
     elif "Cover Letter" in page:
         cover_letter_page()
-    elif "Answer Question" in page:
-        answer_question_page()
 
 def upload_resume_page():
     st.header("📤 Step 1: Upload Resume")
@@ -176,54 +163,21 @@ def upload_resume_page():
                     
                     # Experience
                     if resume_data.get('experience'):
-                        experience = resume_data['experience']
-                        # Handle both AI format (list of dicts) and fallback format (dict with bullet_points)
-                        if isinstance(experience, list) and experience:
-                            if isinstance(experience[0], dict) and 'position' in experience[0]:
-                                # AI format - structured
-                                with st.expander(f"💼 Experience ({len(experience)} positions)"):
-                                    for i, exp in enumerate(experience, 1):
-                                        st.write(f"**{i}. {exp.get('position', 'Position')} at {exp.get('company', 'Company')}**")
-                                        if exp.get('duration'): st.write(f"   📅 {exp['duration']}")
-                                        st.write(f"   📍 Role Summaries: {len(exp.get('role_summaries', []))}")
-                                        st.write(f"   🎯 Accomplishments: {len(exp.get('accomplishments', []))}")
-                            else:
-                                # Fallback format - strings or other structure
-                                st.info("ℹ️ Experience parsed in basic format. You may need to edit manually.")
-                                with st.expander(f"💼 Experience"):
-                                    for item in experience:
-                                        if isinstance(item, str):
-                                            st.write(f"• {item}")
-                                        else:
-                                            st.write(item)
-                        elif isinstance(experience, dict):
-                            # Fallback format - dict with bullet_points
-                            st.info("ℹ️ Experience parsed in basic format. AI parsing may have failed.")
-                            with st.expander(f"💼 Experience"):
-                                if experience.get('text'):
-                                    st.write(experience['text'])
-                                for bp in experience.get('bullet_points', []):
-                                    st.write(f"• {bp}")
+                        with st.expander(f"💼 Experience ({len(resume_data['experience'])} positions)"):
+                            for i, exp in enumerate(resume_data['experience'], 1):
+                                st.write(f"**{i}. {exp['position']} at {exp['company']}**")
+                                if exp['duration']: st.write(f"   📅 {exp['duration']}")
+                                st.write(f"   📍 Role Summaries: {len(exp.get('role_summaries', []))}")
+                                st.write(f"   🎯 Accomplishments: {len(exp.get('accomplishments', []))}")
                     
                     # Projects
                     if resume_data.get('projects'):
-                        projects = resume_data['projects']
-                        if isinstance(projects, list) and projects and isinstance(projects[0], dict) and 'name' in projects[0]:
-                            # AI format
-                            with st.expander(f"🚀 Projects ({len(projects)} projects)"):
-                                for i, proj in enumerate(projects, 1):
-                                    st.write(f"**{i}. {proj.get('name', 'Project')}**")
-                                    st.write(f"   📝 Descriptions: {len(proj.get('descriptions', []))}")
-                                    if proj.get('technologies'):
-                                        st.write(f"   🔧 Tech: {', '.join(proj['technologies'][:3])}...")
-                        elif isinstance(projects, dict):
-                            # Fallback format
-                            st.info("ℹ️ Projects parsed in basic format.")
-                            with st.expander(f"🚀 Projects"):
-                                if projects.get('text'):
-                                    st.write(projects['text'])
-                                for bp in projects.get('bullet_points', []):
-                                    st.write(f"• {bp}")
+                        with st.expander(f"🚀 Projects ({len(resume_data['projects'])} projects)"):
+                            for i, proj in enumerate(resume_data['projects'], 1):
+                                st.write(f"**{i}. {proj['name']}**")
+                                st.write(f"   📝 Descriptions: {len(proj.get('descriptions', []))}")
+                                if proj.get('technologies'):
+                                    st.write(f"   🔧 Tech: {', '.join(proj['technologies'][:3])}...")
                     
                     # Skills
                     if resume_data.get('skills'):
@@ -243,6 +197,25 @@ def upload_resume_page():
     
     else:
         st.info("Please upload a resume file to get started")
+
+    # Load from DB option
+    profiles = load_resume_profiles()
+
+    if profiles:
+        profile_options = {f"{name} (ID: {pid})": pid for pid, name in profiles}
+        selected_profile = st.selectbox("Or load a saved profile:", ["Dont want to load a saved profile"] + list(profile_options.keys()))
+        if selected_profile != "Dont want to load a saved profile":
+            profile_id = profile_options[selected_profile]
+            resume_data = get_resume_by_id(profile_id)
+            st.session_state.resume_data = resume_data
+            # Track the currently loaded profile
+            st.session_state.current_profile_id = profile_id
+            st.session_state.current_profile_name = selected_profile
+            # Reset job matching data since this is a different profile
+            st.session_state.selected_content = None
+            st.session_state.final_markdown = ""
+            st.success(f"Loaded profile: {selected_profile}")
+            st.stop()
 
 def edit_sections_page():
     st.header("✏️ Step 2: Edit Sections")
@@ -485,51 +458,62 @@ def edit_sections_page():
                     edu['graduation'] = st.text_input("Graduation:", value=edu.get('graduation', ''), key=f"edu_grad_{edu_idx}")
                     edu['location'] = st.text_input("Location:", value=edu.get('location', ''), key=f"edu_loc_{edu_idx}")
     
-    # Optional: Save profile
-    with st.expander("💾 Save Profile (Optional)", expanded=False):
-        st.markdown("*Save your resume to reload it later without re-uploading*")
-        try:
-            col1, col2 = st.columns(2)
+    # Save buttons
+    col1, col2 = st.columns(2)
 
-            with col1:
-                if st.session_state.get('current_profile_id'):
-                    if st.button(f"💾 Update '{st.session_state.current_profile_name}'", use_container_width=True):
-                        success = save_resume_to_db(
-                            st.session_state.resume_data,
-                            profile_id=st.session_state.current_profile_id
-                        )
-                        if success:
-                            st.success(f"✅ Updated!")
-                        else:
-                            st.error("❌ Update failed")
-                else:
-                    contact_name = st.session_state.resume_data.get('contact', {}).get('name', 'Resume')
-                    if st.button(f"💾 Save as '{contact_name}'", use_container_width=True):
-                        save_resume_to_db(st.session_state.resume_data)
-                        st.success("✅ Saved!")
+    with col1:
+        # Determine button text based on whether a profile is loaded
+        if st.session_state.current_profile_id:
+            button_text = f"💾 Save to '{st.session_state.current_profile_name}'"
+            help_text = "Update the currently loaded profile"
+        else:
+            button_text = "💾 Save Changes to DB"
+            help_text = "Save as new profile using contact name"
 
-            with col2:
-                new_profile_name = st.text_input(
-                    "Or save as:",
-                    placeholder="Custom profile name",
-                    key="new_profile_name"
-                )
-                if st.button("💾 Save New", use_container_width=True):
-                    if new_profile_name.strip():
-                        success, result = save_resume_as_new_profile(st.session_state.resume_data, new_profile_name.strip())
-                        if success:
-                            st.success(f"✅ Saved as: {new_profile_name}")
-                        else:
-                            st.error(f"❌ {result}")
+        if st.button(button_text, type="primary", help=help_text):
+            try:
+                if st.session_state.current_profile_id:
+                    # Save to current profile by ID
+                    success = save_resume_to_db(
+                        st.session_state.resume_data,
+                        profile_id=st.session_state.current_profile_id
+                    )
+                    if success:
+                        st.success(f"✅ Profile '{st.session_state.current_profile_name}' updated!")
                     else:
-                        st.error("Enter a profile name")
-        except Exception as e:
-            st.info("Profile saving not available")
+                        st.error("❌ Failed to update profile. Profile may not exist.")
+                else:
+                    # Save as new profile using name
+                    save_resume_to_db(st.session_state.resume_data)
+                    st.success("✅ Changes saved to database!")
+            except Exception as e:
+                st.error(f"Save failed: {str(e)}")
+            st.rerun()
 
-    st.info("👉 **Next:** Go to 'AI Enhancement' to optimize your resume for a specific job")
+    with col2:
+        with st.popover("💾 Save As New Profile", use_container_width=True):
+            st.write("**Save as a new profile version**")
+            new_profile_name = st.text_input(
+                "Profile name:",
+                placeholder="e.g., John Doe - Software Engineer v2",
+                help="Enter a unique name for this profile version"
+            )
+
+            if st.button("Save As New Profile", type="secondary"):
+                if new_profile_name.strip():
+                    success, result = save_resume_as_new_profile(st.session_state.resume_data, new_profile_name.strip())
+                    if success:
+                        st.success(f"✅ Profile saved as: {new_profile_name}")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Error: {result}")
+                else:
+                    st.error("Please enter a profile name")
+    
+    st.info("👉 Next Steps: Go to 'Job Matching' → Complete company analysis → Use 'Edit Resume Sections' for AI suggestions")
 
 def job_matching_page():
-    st.header("🤖 Step 2: AI Enhancement")
+    st.header("🤖 Step 3: AI Enhancement")
     st.markdown("**Optimize your resume for a specific job with AI-powered content improvement**")
     
     if not st.session_state.resume_data:
@@ -662,6 +646,7 @@ def _render_ai_enhancement_section():
             st.session_state.content_enhanced = True
             st.session_state.company_analysis = company_analysis
             st.success("✅ Resume enhanced! Go to 'Review & Finalize' to edit or 'Export Resume PDF' to download.")
+            st.balloons()
 
         except Exception as e:
             st.error(f"Enhancement failed: {str(e)}")
@@ -750,8 +735,8 @@ def _apply_ai_enhancements_directly(resume_data, job_description, company_analys
 
 
 def edit_markdown_page():
-    st.header("📝 Step 3: Review & Edit")
-    st.markdown("**Review AI-enhanced content, make edits, and preview your resume**")
+    st.header("📝 Step 4: Review & Finalize")
+    st.markdown("**Make final edits to your resume sections and preview before export**")
     
     if not st.session_state.resume_data:
         _show_prerequisite_warning("Step 1: Upload & Parse Resume", "You need to upload your resume before reviewing")
@@ -825,7 +810,7 @@ def _generate_custom_filename():
     return f"{clean_name}_{clean_company}_{clean_role}.pdf"
 
 def export_pdf_page():
-    st.header("📄 Step 4: Export PDF")
+    st.header("📄 Export Resume PDF")
     st.markdown("**Choose a professional theme and download your resume as PDF**")
     
     if not st.session_state.resume_data:
@@ -1777,26 +1762,151 @@ def _extract_job_keywords_and_tech_terms(job_description):
         return [], []
 
 
+def _render_step3_generate_matched_resume():
+    """Step 3: AI selects best content mix for target job"""
+    st.markdown("*AI will select the best combination of your content for this specific job.*")
+
+    # Check if we have job context
+    if not st.session_state.get('target_job_description'):
+        st.warning("⚠️ Please complete Step 0 (Job Context) first to provide job description for matching.")
+        return
+
+    # Determine data source
+    if st.session_state.get('approved_content'):
+        st.info("📊 **Using Enhanced Content** - AI will select from your reviewed enhanced content")
+        data_source = "enhanced"
+    else:
+        st.info("📋 **Using Original Content** - AI will select from your original resume content")
+        data_source = "original"
+    
+    if st.button("🎯 Generate Best Match Resume", type="primary"):
+        with st.spinner("AI is selecting the optimal content mix..."):
+            try:
+                # Use the original matcher with appropriate data source
+                matcher = JobMatcher()
+
+                # Determine which data to use for matching
+                if data_source == "enhanced":
+                    # Create a temporary resume data structure with approved enhanced content
+                    resume_data_for_matching = _create_enhanced_resume_data_structure()
+                else:
+                    # Use original resume data
+                    resume_data_for_matching = st.session_state.resume_data
+
+                # Generate matched content
+                selected_content = matcher.match_resume_to_job(
+                    resume_data_for_matching,
+                    st.session_state.target_job_description
+                )
+                
+                st.session_state.selected_content = selected_content
+                
+                # Generate markdown
+                final_markdown = matcher.generate_markdown(selected_content)
+                st.session_state.final_markdown = final_markdown
+                
+                st.success("✅ Best match resume generated!")
+                
+                # Show results
+                with st.expander("🎯 AI Selected Content", expanded=True):
+                    # Display selected content
+                    if selected_content.get('summary'):
+                        st.write("**Selected Summary Sentences:**")
+                        for sentence in selected_content['summary'].get('sentences', []):
+                            st.write(f"• {sentence}")
+                    
+                    if selected_content.get('experience'):
+                        st.write("**Selected Experience:**")
+                        for exp in selected_content['experience']:
+                            st.write(f"**{exp.get('position')} at {exp.get('company')}**")
+                            if exp.get('accomplishments'):
+                                for acc in exp['accomplishments']:  # Show first 3
+                                    st.write(f"  • {acc}")
+                    
+                    if selected_content.get('projects'):
+                        st.write("**Selected Projects:**")
+                        for proj in selected_content['projects']:
+                            st.write(f"**{proj.get('name')}**")
+                            if proj.get('descriptions'):
+                                for desc in proj['descriptions']:  # Show first 2
+                                    st.write(f"  • {desc}")
+                
+                # Reset workflow for next use
+                if st.button("🔄 Clear All AI Data & Start Over"):
+                    st.session_state.enhanced_content = None
+                    st.session_state.approved_content = None
+                    st.session_state.selected_content = None
+                    st.session_state.final_markdown = ""
+                    st.success("Cleared! You can now start the AI process again.")
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"Content selection failed: {str(e)}")
+
+    # Info about next steps
+    st.info("💡 **Next Steps:** Go to 'Review & Finalize' to edit your matched resume or 'Export Resume PDF' to download it.")
+
+def _create_enhanced_resume_data_structure():
+    """Create resume data structure from approved enhanced content while preserving manual edits"""
+    
+    # CRITICAL: Use the latest manually edited data, not the original parsed data
+    enhanced_data = st.session_state.resume_data.copy()  # This includes manual edits like GitHub, website
+    approved = st.session_state.approved_content
+    
+    # Only replace AI-enhanced sections, preserve everything else (contact, skills, education, etc.)
+    if approved.get('summary_sentences'):
+        # Preserve existing summary structure, only replace sentences
+        if 'summary' not in enhanced_data:
+            enhanced_data['summary'] = {}
+        enhanced_data['summary']['sentences'] = approved['summary_sentences']
+    
+    if approved.get('experience'):
+        for exp_idx, approved_exp in approved['experience'].items():
+            if exp_idx < len(enhanced_data.get('experience', [])):
+                # Only replace AI-enhanced fields, preserve company, position, dates, etc.
+                if approved_exp.get('role_summaries'):
+                    enhanced_data['experience'][exp_idx]['role_summaries'] = approved_exp['role_summaries']
+                if approved_exp.get('accomplishments'):
+                    enhanced_data['experience'][exp_idx]['accomplishments'] = approved_exp['accomplishments']
+    
+    if approved.get('projects'):
+        for proj_idx, approved_proj in approved['projects'].items():
+            if proj_idx < len(enhanced_data.get('projects', [])):
+                # Only replace AI-enhanced descriptions, preserve name, url, technologies
+                if approved_proj.get('descriptions'):
+                    enhanced_data['projects'][proj_idx]['descriptions'] = approved_proj['descriptions']
+    
+    # Ensure contact info is preserved (this is the key fix!)
+    # The copy() should already include this, but let's be explicit for debugging
+    contact_fields = ['contact', 'skills', 'education', 'certifications']
+    for field in contact_fields:
+        if field in st.session_state.resume_data:
+            enhanced_data[field] = st.session_state.resume_data[field]
+    
+    return enhanced_data
+
 def _show_workflow_overview():
     """Display workflow overview for new users"""
     with st.sidebar.expander("💡 **How It Works**", expanded=False):
         st.markdown("""
         **AI-powered resume builder that creates job-specific PDFs in minutes**
 
-        #### 📋 Simple 3-Step Process:
+        #### 📋 Simple 4-Step Process:
 
-        **1. 📤 Upload** → Upload your resume (PDF/DOCX)
+        **1. 📤 Upload** → Upload your existing resume (PDF/DOCX)
 
-        **2. 🤖 AI Enhance** → Paste job description → AI optimizes content
+        **2. ✏️ Edit** → Review and edit extracted content
 
-        **3. 📄 Export** → Download professional PDF
+        **3. 🤖 AI Enhance** → Paste a job description, AI optimizes your content
+
+        **4. 📄 Export** → Download professional PDF resume
 
         ---
 
         💡 **Why use this?**
-        - Upload once, optimize for any job
-        - AI tailors content to job requirements
-        - Professional PDF themes included
+        - AI tailors your resume for each job
+        - No manual copy-pasting between tools
+        - Professional PDF export included
         - Free with your OpenAI API key
 
         ⚠️ **Setup:** Add `OPENAI_API_KEY=sk-...` to `.env` file
@@ -2004,9 +2114,8 @@ def cover_letter_page():
             # Copy to clipboard functionality (placeholder)
             st.button("📋 Copy to Clipboard", help="Copy cover letter text (implementation needed)")
 
-
-def answer_question_page():
-    """Answer specific questions using resume data and job context"""
+    # Answer a Question Section
+    st.divider()
     st.header("❓ Answer a Question")
     st.markdown("**Answer specific questions that companies ask during application process**")
 
@@ -2015,45 +2124,6 @@ def answer_question_page():
         st.session_state.generated_answer = ""
     if 'answer_inputs' not in st.session_state:
         st.session_state.answer_inputs = {}
-
-    # Job Information Section (reuse from AI enhancement if available)
-    st.subheader("🏢 Job Context")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        existing_company = st.session_state.get('target_company_name', '')
-        existing_title = st.session_state.get('target_job_title', '')
-
-        company_name = st.text_input(
-            "Company Name",
-            value=existing_company,
-            placeholder="e.g., Google, Microsoft",
-            key="qa_company"
-        )
-        job_title = st.text_input(
-            "Job Title",
-            value=existing_title,
-            placeholder="e.g., Software Engineer",
-            key="qa_job_title"
-        )
-
-    with col2:
-        existing_job_desc = st.session_state.get('target_job_description', '')
-        job_description = st.text_area(
-            "Job Description:",
-            value=existing_job_desc,
-            height=90,
-            placeholder="Paste job description...",
-            key="qa_job_desc"
-        )
-        company_info = st.text_area(
-            "Company Info (Optional):",
-            height=70,
-            placeholder="Company culture, values...",
-            key="qa_company_info"
-        )
-
-    st.divider()
 
     # Question input
     st.subheader("📝 Question & Customization")

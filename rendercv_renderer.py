@@ -55,23 +55,29 @@ class RenderCVRenderer:
         try:
             # Transform data to RenderCV format
             rendercv_data = self.transformer.transform_to_rendercv(resume_data, theme)
-            
-            # Save YAML file
-            # pdb.set_trace()
-            yaml_file_path = os.path.join("test_folder", 'resume.yaml')
-            
+
+            # Create temp directory if it doesn't exist
+            temp_dir = os.path.join(os.getcwd(), "rendercv_output")
+            os.makedirs(temp_dir, exist_ok=True)
+
+            # Save YAML file dynamically (not hardcoded!)
+            yaml_file_path = os.path.join(temp_dir, 'resume.yaml')
+
             with open(yaml_file_path, 'w', encoding='utf-8') as f:
                 yaml.dump(rendercv_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-            
-            print(f"YAML file saved to {yaml_file_path}")
+
+            print(f"✅ YAML file dynamically generated at: {yaml_file_path}")
             
             # Render using RenderCV command line (which works)
             pdf_bytes = self._render_with_subprocess(yaml_file_path)
             
             return pdf_bytes
-            
+
         except Exception as e:
-            raise RuntimeError(f"RenderCV compilation failed: {str(e)}")
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"RenderCV Error Details:\n{error_details}")
+            raise RuntimeError(f"RenderCV compilation failed: {str(e)}\n\nDetails: Check that resume data has all required fields (name, email, etc.)")
     
     def _render_with_api(self, yaml_file_path: str) -> bytes:
         """Render using RenderCV Python API"""
@@ -126,7 +132,9 @@ class RenderCVRenderer:
             )
             
             if result.returncode != 0:
-                raise RuntimeError(f"RenderCV render failed: {result.stderr}")
+                print(f"❌ RenderCV STDOUT:\n{result.stdout}")
+                print(f"❌ RenderCV STDERR:\n{result.stderr}")
+                raise RuntimeError(f"RenderCV render failed:\n\nSTDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}")
             
             # Look for PDF files in the directory containing the YAML file
             search_dir = os.path.dirname(yaml_file_path)

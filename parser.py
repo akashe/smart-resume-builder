@@ -89,14 +89,18 @@ class ResumeParser:
     
     def _ai_parse_sections(self, text: str) -> Dict[str, Any]:
         """Use AI to intelligently parse resume sections into structured data"""
-        
+
+        # Validate this looks like a resume (raise immediately, don't catch)
+        if not self._validate_resume_content(text):
+            raise ValueError("The uploaded file doesn't appear to be a resume. Please upload a document containing work experience, education, or skills.")
+
         try:
             prompt = f"""
             Parse this resume text into highly structured sections for intelligent job matching.
-            
+
             Resume Text:
             {text}
-            
+
             Return JSON with these EXACT structures:
             
             {{
@@ -173,15 +177,23 @@ class ResumeParser:
                 "achievements": [
                     "Award or recognition 1",
                     "Notable accomplishment 2"
-                ]
+                ],
+                "custom_sections": {{
+                    "Internships": ["internship entry 1", "internship entry 2"],
+                    "Publications": ["publication 1", "publication 2"],
+                    "Volunteer Work": ["volunteer activity 1"],
+                    "Languages": ["English (Native)", "Spanish (Fluent)"]
+                }}
             }}
-            
+
             IMPORTANT RULES:
             1. Break summary into individual sentences
             2. Each experience is a separate object with structured fields
             3. Each project is a separate object with multiple description options
             4. If information is missing, use empty string or empty array
             5. Extract ALL variations/details for maximum matching flexibility
+            6. For any section not in the standard list (like Internships, Publications, Volunteer, Languages, etc.), add them to "custom_sections" as key-value pairs
+            7. Do NOT include "References available upon request" or similar generic statements
             """
             
             response = self.client.chat.completions.create(
@@ -612,5 +624,26 @@ class ResumeParser:
                     not any(char.isdigit() for char in skill[:3]) and  # Avoid dates/numbers
                     len(skill.split()) <= 4):  # Reasonable skill length
                     skills.append(skill)
-        
+
         return skills
+
+    def _validate_resume_content(self, text: str) -> bool:
+        """Check if the extracted text looks like a resume"""
+        if not text or len(text) < 100:
+            return False
+
+        text_lower = text.lower()
+
+        # Check for resume-like keywords
+        resume_indicators = [
+            'experience', 'education', 'skills', 'work', 'employment',
+            'university', 'college', 'degree', 'bachelor', 'master',
+            'project', 'email', 'phone', 'linkedin', 'github',
+            'software', 'engineer', 'developer', 'manager', 'analyst'
+        ]
+
+        # Count how many indicators are present
+        matches = sum(1 for indicator in resume_indicators if indicator in text_lower)
+
+        # If we have at least 3 resume indicators, it's probably a resume
+        return matches >= 3
