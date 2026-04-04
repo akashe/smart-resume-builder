@@ -142,7 +142,7 @@ def upload_resume_page():
                     st.success("✅ Resume parsed successfully!")
                     
                     # Display structured parsed data
-                    st.subheader("📋 Parsed Data Overview:")
+                    st.subheader("📋 Resume Overview:")
                     
                     # Contact info
                     if resume_data.get('contact', {}).get('name'):
@@ -520,8 +520,7 @@ def edit_sections_page():
 
 def job_matching_page():
     st.header("🤖 Step 2: AI Enhancement")
-    st.markdown("**Optimize your resume for a specific job with AI-powered content improvement**")
-    
+
     if not st.session_state.resume_data:
         _show_prerequisite_warning("Step 1: Upload Resume", "You need to upload your resume first")
         return
@@ -651,7 +650,7 @@ def _render_ai_enhancement_section():
 
             st.session_state.content_enhanced = True
             st.session_state.company_analysis = company_analysis
-            st.success("✅ Resume enhanced! Go to 'Review & Finalize' to edit or 'Export Resume PDF' to download.")
+            st.success("✅ Resume enhanced! Go to 'Review & Finalize' to edit.")
 
         except Exception as e:
             st.error(f"Enhancement failed: {str(e)}")
@@ -741,8 +740,7 @@ def _apply_ai_enhancements_directly(resume_data, job_description, company_analys
 
 def edit_markdown_page():
     st.header("📝 Step 3: Review & Edit")
-    st.markdown("**Review AI-enhanced content, make edits, and preview your resume**")
-    
+
     if not st.session_state.resume_data:
         _show_prerequisite_warning("Step 1: Upload & Parse Resume", "You need to upload your resume before reviewing")
         return
@@ -760,7 +758,6 @@ def edit_markdown_page():
     # ✅ **Final polish** - Make last-minute adjustments before export
     # """)
     
-    st.markdown("---")
 
     # Show enhancement status
     if st.session_state.get('content_enhanced'):
@@ -781,14 +778,13 @@ def edit_markdown_page():
     
     # Auto-generate final markdown
     st.divider()
-    st.subheader("📄 Live Resume Preview")
     
     # Generate markdown from current sections
     final_markdown = _generate_markdown_from_sections()
     st.session_state.final_markdown = final_markdown
     
     # Show preview
-    with st.expander("👀 Preview Final Resume", expanded=True):
+    with st.expander("👀 Resume Preview", expanded=True):
         st.markdown(final_markdown)
     
 
@@ -836,15 +832,6 @@ def export_pdf_page():
     # """)
     
     st.markdown("---")
-
-    # Show enhancement status
-    if st.session_state.get('content_enhanced'):
-        st.success("✨ **Exporting AI-Enhanced Resume** - Optimized for your target job")
-    else:
-        st.info("📋 **Exporting Resume** - Consider using AI Enhancement for better results")
-
-    # Theme Selection Section
-    st.subheader("🎨 Choose Resume Theme")
     
     try:
         theme_exporter = ThemeExporter()

@@ -3,7 +3,7 @@ from enum import Enum
 import tempfile
 import os
 
-from typst_renderer import TypstRenderer
+# Only import RenderCV - Typst requires system binary not available on Streamlit Cloud
 from rendercv_renderer import RenderCVRenderer
 
 class ThemeType(Enum):
@@ -14,19 +14,15 @@ class ThemeExporter:
     """Unified exporter supporting JSON Resume and Typst themes"""
     
     AVAILABLE_THEMES = {
-        # Typst templates (working, high-quality themes)
-        ThemeType.TYPST: {
-            'modern-cv': 'Modern CV - Professional typography with elegant layout',
-            'basic-resume': 'Basic Resume - Clean, ATS-friendly design'
-        },
-        # RenderCV themes (professional Typst-based templates)
+        # RenderCV themes (professional Typst-based templates - works on Streamlit Cloud)
         ThemeType.RENDERCV: {
             'classic': 'Classic - Traditional professional resume format',
-            'engineeringresumes': 'Engineering Resumes - Optimized for technical roles', 
+            'engineeringresumes': 'Engineering Resumes - Optimized for technical roles',
             'sb2nov': 'SB2Nov - Modern academic CV style',
             'moderncv': 'Modern CV - Contemporary professional design',
             'engineeringclassic': 'Engineering Classic - Clean technical resume format'
         }
+        # Note: Typst themes removed - requires system binary not available on Streamlit Cloud
     }
     
     def __init__(self):
@@ -35,7 +31,6 @@ class ThemeExporter:
     def get_available_themes(self) -> Dict[str, Dict[str, str]]:
         """Get all available themes organized by engine type"""
         return {
-            'Typst': self.AVAILABLE_THEMES[ThemeType.TYPST],
             'RenderCV': self.AVAILABLE_THEMES[ThemeType.RENDERCV]
         }
     
@@ -72,25 +67,19 @@ class ThemeExporter:
         
 
         if engine_type == ThemeType.TYPST:
-            return self._export_typst(resume_data, theme_name, output_format)
+            raise ValueError("Typst themes are not available on Streamlit Cloud. Please use RenderCV themes instead.")
         elif engine_type == ThemeType.RENDERCV:
             return self._export_rendercv(resume_data, theme_name, output_format)
         else:
             raise ValueError(f"Unsupported theme engine: {theme_engine}")
     
-    def _export_typst(self, 
+    def _export_typst(self,
                       resume_data: Dict[str, Any],
                       theme_name: str,
                       output_format: str) -> bytes:
-        """Export using Typst engine"""
-        
-        if output_format.lower() != 'pdf':
-            raise ValueError("Typst only supports PDF output")
-        
-        # Render using Typst
-        with TypstRenderer() as renderer:
-            return renderer.render_resume(resume_data, theme_name)
-    
+        """Export using Typst engine - NOT AVAILABLE ON STREAMLIT CLOUD"""
+        raise ValueError("Typst themes require a system binary and are not available on Streamlit Cloud. Please use RenderCV themes instead.")
+
     def _export_rendercv(self,
                          resume_data: Dict[str, Any],
                          theme_name: str,

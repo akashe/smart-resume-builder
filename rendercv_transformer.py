@@ -16,12 +16,18 @@ class RenderCVTransformer:
         # Extract contact info
         contact = resume_data.get('contact', {})
         
-        # Build CV structure
+        # Build CV structure - ensure all fields are strings (not None or other types)
+        def safe_str(value, default=''):
+            """Convert to string, avoiding 'None' string"""
+            if value is None or value == '':
+                return default
+            return str(value).strip()
+
         cv_data = {
-            'name': contact.get('name', 'Your Name'),
-            'title': contact.get('title', ''),
-            'location': contact.get('city', '') or contact.get('location', '') or 'Location',
-            'email': contact.get('email', 'email@example.com'),
+            'name': safe_str(contact.get('name'), 'Your Name'),
+            'title': safe_str(contact.get('title'), ''),
+            'location': safe_str(contact.get('city') or contact.get('location'), 'Location'),
+            'email': safe_str(contact.get('email'), 'email@example.com'),
             'phone': self._format_phone(contact.get('phone', '')),
             'social_networks': self._build_social_networks(contact),
             'sections': self._build_sections(resume_data)
@@ -50,11 +56,16 @@ class RenderCVTransformer:
         
         return rendercv_data
     
-    def _format_phone(self, phone: str) -> str:
-        """Format phone number for RenderCV validation"""
-        # Always return the working phone number format that RenderCV accepts
-        # RenderCV seems very strict about phone validation
-        return phone
+    def _format_phone(self, phone) -> str:
+        """Format phone number for RenderCV validation - ensures string type"""
+        if not phone:
+            return ''
+
+        # Convert to string if it's a number (common parsing issue)
+        phone_str = str(phone).strip()
+
+        # Return as string - RenderCV requires string type
+        return phone_str
     
     def _build_social_networks(self, contact: Dict[str, Any]) -> List[Dict[str, str]]:
         """Build social networks section"""
