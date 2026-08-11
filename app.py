@@ -1,5 +1,7 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import os
+import uuid
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -33,6 +35,56 @@ if 'current_profile_id' not in st.session_state:
     st.session_state.current_profile_id = None
 if 'current_profile_name' not in st.session_state:
     st.session_state.current_profile_name = None
+if 'user_openai_api_key' not in st.session_state:
+    st.session_state.user_openai_api_key = ""
+if 'browser_session_id' not in st.session_state:
+    # Scopes saved profiles to this browser session so visitors on a shared/public
+    # deployment can't see or load each other's saved resumes.
+    st.session_state.browser_session_id = str(uuid.uuid4())
+
+def _get_openai_api_key():
+    """Resolve the OpenAI API key to use for this session.
+
+    A key entered in the sidebar always wins, so each visitor on a shared/public
+    deployment uses their own key instead of silently spending the host's budget.
+    Falls back to the OPENAI_API_KEY env var for self-hosted single-user setups.
+    """
+    return st.session_state.user_openai_api_key.strip() or os.getenv("OPENAI_API_KEY", "")
+
+def _render_api_key_sidebar():
+    """Let each visitor supply their own OpenAI API key instead of sharing the host's."""
+    with st.sidebar.expander("🔑 OpenAI API Key", expanded=not _get_openai_api_key()):
+        st.caption("Used only for this browser session, never saved to disk or a database.")
+        entered_key = st.text_input(
+            "Your OpenAI API key:",
+            value=st.session_state.user_openai_api_key,
+            type="password",
+            placeholder="sk-...",
+            key="user_openai_api_key_input"
+        )
+        st.session_state.user_openai_api_key = entered_key
+        if not entered_key and os.getenv("OPENAI_API_KEY"):
+            st.caption("No key entered — falling back to the server's configured key.")
+
+def _copy_to_clipboard_button(text, label="📋 Copy to Clipboard", key=None):
+    """Render a working copy-to-clipboard button (st.button can't run client-side JS)."""
+    import json
+    button_id = f"copy-btn-{key or 'default'}"
+    components.html(f"""
+        <button id="{button_id}" style="
+            width: 100%; padding: 0.5rem 1rem; border-radius: 0.5rem;
+            border: 1px solid rgba(49, 51, 63, 0.2); background: #ffffff;
+            color: #31333F; font-size: 1rem; cursor: pointer;">{label}</button>
+        <script>
+            document.getElementById("{button_id}").addEventListener("click", function() {{
+                navigator.clipboard.writeText({json.dumps(text)});
+                const btn = this;
+                const original = btn.innerText;
+                btn.innerText = "✅ Copied!";
+                setTimeout(() => {{ btn.innerText = original; }}, 1500);
+            }});
+        </script>
+    """, height=45)
 
 def main():
     st.set_page_config(
@@ -49,6 +101,8 @@ def main():
     
     # Sidebar navigation - clean and minimal
     st.sidebar.title("📄 AI Resume Builder")
+    _show_workflow_overview()
+    _render_api_key_sidebar()
 
     # Fixed page names - NEVER modify this list dynamically to avoid navigation bugs
     pages = [
@@ -66,10 +120,14 @@ def main():
         key="page_selector"
     )
 
-    # Check for OpenAI API key
-    if not os.getenv("OPENAI_API_KEY"):
+    # Show progress separately from the radio options themselves - the option
+    # labels must stay fixed strings or the radio loses its selection on rerun
+    _render_step_status()
+
+    # Check for an OpenAI API key from either the sidebar input or the server's .env
+    if not _get_openai_api_key():
         st.error("⚠️ Missing OpenAI API Key")
-        st.info("Please add `OPENAI_API_KEY=your_key_here` to a .env file in the project root")
+        st.info("Enter your own key in the **🔑 OpenAI API Key** box in the sidebar, or (if self-hosting) add `OPENAI_API_KEY=your_key_here` to a .env file in the project root")
         st.stop()
 
     # Page routing with guards for pages requiring resume data
@@ -126,7 +184,7 @@ def upload_resume_page():
         
         if st.button("Parse Resume", type="primary"):
             with st.spinner("Parsing resume..."):
-                parser = ResumeParser()
+                parser = ResumeParser(api_key=_get_openai_api_key())
                 
                 try:
                     # Parse the resume
@@ -233,290 +291,6 @@ def upload_resume_page():
     
     else:
         st.info("Please upload a resume file to get started")
-
-def edit_sections_page():
-    st.header("✏️ Step 2: Edit Sections")
-    st.markdown("**Review and edit your resume content - add details and make corrections**")
-    
-    if not st.session_state.resume_data:
-        _show_prerequisite_warning("Step 1: Upload & Parse Resume", "You need to upload and parse your resume before adding variations")
-        return
-    
-    resume_data = st.session_state.resume_data
-    
-    # Clear explanation of what to do on this page
-    # st.info("""
-    # **What you'll do here:**
-    
-    # ✍️ **Add multiple variations** of your accomplishments, role summaries, and project descriptions
-    
-    # 📝 **Expand your content** so the AI has more options to choose from when matching to specific jobs
-    
-    # 💡 **Why?** Different jobs value different aspects of your experience. Having variations lets the AI pick the most relevant ones!
-    # """)
-    
-    st.markdown("---")
-    
-    # Section tabs
-    tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["👤 Contact", "📝 Summary", "💼 Experience", "🚀 Projects", "🛠️ Skills", "🎓 Education"])
-    
-    with tab0:
-        st.subheader("Contact Information")
-        st.markdown("*Edit your contact details and professional title*")
-        
-        if 'contact' not in resume_data:
-            resume_data['contact'] = {
-                'name': '', 'email': '', 'phone': '', 'location': '', 
-                'linkedin': '', 'github': '', 'website': '', 'title': ''
-            }
-        
-        contact = resume_data['contact']
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            contact['name'] = st.text_input("Full Name:", value=contact.get('name', ''), key="contact_name")
-            contact['title'] = st.text_input("Professional Title/Designation:", value=contact.get('title', ''), 
-                                           placeholder="e.g., AI & NLP Expert, Senior Software Engineer", key="contact_title")
-            contact['email'] = st.text_input("Email:", value=contact.get('email', ''), key="contact_email")
-            contact['phone'] = st.text_input("Phone:", value=contact.get('phone', ''), key="contact_phone")
-        
-        with col2:
-            contact['location'] = st.text_input("Location:", value=contact.get('location', ''), 
-                                              placeholder="City, State", key="contact_location")
-            contact['linkedin'] = st.text_input("LinkedIn URL:", value=contact.get('linkedin', ''), 
-                                              placeholder="https://linkedin.com/in/username", key="contact_linkedin")
-            contact['github'] = st.text_input("GitHub URL:", value=contact.get('github', ''), 
-                                            placeholder="https://github.com/username", key="contact_github")
-            contact['website'] = st.text_input("Personal Website:", value=contact.get('website', ''), 
-                                             placeholder="https://yourwebsite.com", key="contact_website")
-    
-    with tab1:
-        st.subheader("Summary Sentences")
-        st.markdown("*Each sentence can be mixed and matched for different jobs*")
-        
-        if 'summary' not in resume_data:
-            resume_data['summary'] = {'sentences': []}
-        
-        sentences = st.session_state.resume_data['summary'].get('sentences', [])
-        
-        # Edit existing sentences - update session state directly
-        for i, sentence in enumerate(sentences):
-            col1, col2 = st.columns([5, 1])
-            with col1:
-                updated_sentence = st.text_area(
-                    f"Sentence {i+1}:",
-                    value=sentence,
-                    height=60,
-                    key=f"summary_sentence_{i}"
-                )
-                # Update session state immediately on change
-                if updated_sentence != sentence:
-                    st.session_state.resume_data['summary']['sentences'][i] = updated_sentence
-            with col2:
-                st.write("")  # spacer
-                if st.button("🗑️", key=f"delete_summary_{i}", help="Delete this sentence"):
-                    # Remove the sentence and refresh
-                    st.session_state.resume_data['summary']['sentences'].pop(i)
-                    st.rerun()
-        
-        # Add new sentence
-        if st.button("➕ Add New Sentence", key="add_summary_btn"):
-            st.session_state.resume_data['summary']['sentences'].append("")
-            st.rerun()
-    
-    with tab2:
-        st.subheader("Work Experience")
-        
-        if 'experience' not in resume_data:
-            resume_data['experience'] = []
-        
-        experiences = st.session_state.resume_data['experience']
-        
-        for exp_idx, exp in enumerate(experiences):
-            with st.expander(f"📍 {exp.get('position', 'Position')} at {exp.get('company', 'Company')}", expanded=True):
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    exp['position'] = st.text_input("Position:", value=exp.get('position', ''), key=f"exp_pos_{exp_idx}")
-                    exp['company'] = st.text_input("Company:", value=exp.get('company', ''), key=f"exp_comp_{exp_idx}")
-                with col2:
-                    exp['duration'] = st.text_input("Duration:", value=exp.get('duration', ''), key=f"exp_dur_{exp_idx}")
-                    exp['location'] = st.text_input("Location:", value=exp.get('location', ''), key=f"exp_loc_{exp_idx}")
-                
-                st.markdown("**Role Summaries (different ways to describe the role):**")
-                role_summaries = exp.get('role_summaries', [])
-                for i, summary in enumerate(role_summaries):
-                    col1, col2 = st.columns([5, 1])
-                    with col1:
-                        updated_summary = st.text_area(f"Role Summary {i+1}:", value=summary, height=50, key=f"exp_summary_{exp_idx}_{i}")
-                        # Update session state immediately on change
-                        if updated_summary != summary:
-                            st.session_state.resume_data['experience'][exp_idx]['role_summaries'][i] = updated_summary
-                    with col2:
-                        st.write("")  # spacer
-                        if st.button("🗑️", key=f"delete_role_summary_{exp_idx}_{i}", help="Delete this role summary"):
-                            # Remove the role summary and refresh
-                            st.session_state.resume_data['experience'][exp_idx]['role_summaries'].pop(i)
-                            st.rerun()
-                
-                # Add new role summary
-                if st.button("➕ Add Role Summary", key=f"add_role_summary_{exp_idx}"):
-                    st.session_state.resume_data['experience'][exp_idx]['role_summaries'].append("")
-                    st.rerun()
-                
-                st.markdown("**Accomplishments & Responsibilities:**")
-                accomplishments = exp.get('accomplishments', [])
-                for i, acc in enumerate(accomplishments):
-                    col1, col2 = st.columns([5, 1])
-                    with col1:
-                        updated_acc = st.text_area(f"Accomplishment {i+1}:", value=acc, height=60, key=f"exp_acc_{exp_idx}_{i}")
-                        # Update session state immediately on change
-                        if updated_acc != acc:
-                            st.session_state.resume_data['experience'][exp_idx]['accomplishments'][i] = updated_acc
-                    with col2:
-                        st.write("")  # spacer
-                        if st.button("🗑️", key=f"delete_accomplishment_{exp_idx}_{i}", help="Delete this accomplishment"):
-                            # Remove the accomplishment and refresh
-                            st.session_state.resume_data['experience'][exp_idx]['accomplishments'].pop(i)
-                            st.rerun()
-                
-                # Add new accomplishment
-                if st.button("➕ Add Accomplishment", key=f"add_accomplishment_{exp_idx}"):
-                    st.session_state.resume_data['experience'][exp_idx]['accomplishments'].append("")
-                    st.rerun()
-        
-        # Add new experience
-        if st.button("➕ Add New Experience"):
-            new_exp = {
-                'position': '', 'company': '', 'duration': '', 'location': '',
-                'role_summaries': [], 'accomplishments': []
-            }
-            resume_data['experience'].append(new_exp)
-            st.rerun()
-    
-    with tab3:
-        st.subheader("Projects")
-        
-        if 'projects' not in resume_data:
-            resume_data['projects'] = []
-        
-        projects = st.session_state.resume_data['projects']
-        
-        for proj_idx, proj in enumerate(projects):
-            with st.expander(f"🚀 {proj.get('name', 'Project Name')}", expanded=True):
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    proj['name'] = st.text_input("Project Name:", value=proj.get('name', ''), key=f"proj_name_{proj_idx}")
-                with col2:
-                    proj['url'] = st.text_input("URL (optional):", value=proj.get('url', ''), key=f"proj_url_{proj_idx}")
-                
-                st.markdown("**Project Descriptions (different ways to describe it):**")
-                descriptions = proj.get('descriptions', [])
-                for i, desc in enumerate(descriptions):
-                    col1, col2 = st.columns([5, 1])
-                    with col1:
-                        updated_desc = st.text_area(f"Description {i+1}:", value=desc, height=60, key=f"proj_desc_{proj_idx}_{i}")
-                        # Update session state immediately on change
-                        if updated_desc != desc:
-                            st.session_state.resume_data['projects'][proj_idx]['descriptions'][i] = updated_desc
-                    with col2:
-                        st.write("")  # spacer
-                        if st.button("🗑️", key=f"delete_project_desc_{proj_idx}_{i}", help="Delete this description"):
-                            # Remove the project description and refresh
-                            st.session_state.resume_data['projects'][proj_idx]['descriptions'].pop(i)
-                            st.rerun()
-                
-                # Add new description
-                if st.button("➕ Add Description", key=f"add_description_{proj_idx}"):
-                    st.session_state.resume_data['projects'][proj_idx]['descriptions'].append("")
-                    st.rerun()
-                
-                # Technologies
-                tech_list = ', '.join(proj.get('technologies', []))
-                new_tech_list = st.text_input("Technologies (comma-separated):", value=tech_list, key=f"proj_tech_{proj_idx}")
-                proj['technologies'] = [t.strip() for t in new_tech_list.split(',') if t.strip()]
-        
-        # Add new project
-        if st.button("➕ Add New Project"):
-            new_proj = {'name': '', 'url': '', 'descriptions': [], 'technologies': [], 'achievements': []}
-            resume_data['projects'].append(new_proj)
-            st.rerun()
-    
-    with tab4:
-        st.subheader("Skills")
-        
-        if 'skills' not in resume_data:
-            resume_data['skills'] = {'technical': [], 'programming': [], 'tools': [], 'soft_skills': []}
-        
-        skills = resume_data['skills']
-        
-        for category in ['technical', 'programming', 'tools', 'soft_skills']:
-            skill_list = ', '.join(skills.get(category, []))
-            updated_skills = st.text_input(f"{category.replace('_', ' ').title()} Skills:", value=skill_list, key=f"skills_{category}")
-            skills[category] = [s.strip() for s in updated_skills.split(',') if s.strip()]
-    
-    with tab5:
-        st.subheader("Education")
-        
-        if 'education' not in resume_data:
-            resume_data['education'] = []
-        
-        education = resume_data['education']
-        
-        for edu_idx, edu in enumerate(education):
-            with st.expander(f"🎓 {edu.get('degree', 'Degree')} - {edu.get('institution', 'Institution')}", expanded=True):
-                col1, col2 = st.columns(2)
-                with col1:
-                    edu['degree'] = st.text_input("Degree:", value=edu.get('degree', ''), key=f"edu_deg_{edu_idx}")
-                    edu['specialization'] = st.text_input("Specialization/Field of Study:", value=edu.get('specialization', ''), key=f"edu_spec_{edu_idx}")
-                    edu['institution'] = st.text_input("Institution:", value=edu.get('institution', ''), key=f"edu_inst_{edu_idx}")
-                with col2:
-                    edu['graduation'] = st.text_input("Graduation:", value=edu.get('graduation', ''), key=f"edu_grad_{edu_idx}")
-                    edu['location'] = st.text_input("Location:", value=edu.get('location', ''), key=f"edu_loc_{edu_idx}")
-    
-    # Optional: Save profile
-    with st.expander("💾 Save Profile (Optional)", expanded=False):
-        st.markdown("*Save your resume to reload it later without re-uploading*")
-        try:
-            col1, col2 = st.columns(2)
-
-            with col1:
-                if st.session_state.get('current_profile_id'):
-                    if st.button(f"💾 Update '{st.session_state.current_profile_name}'", use_container_width=True):
-                        success = save_resume_to_db(
-                            st.session_state.resume_data,
-                            profile_id=st.session_state.current_profile_id
-                        )
-                        if success:
-                            st.success(f"✅ Updated!")
-                        else:
-                            st.error("❌ Update failed")
-                else:
-                    contact_name = st.session_state.resume_data.get('contact', {}).get('name', 'Resume')
-                    if st.button(f"💾 Save as '{contact_name}'", use_container_width=True):
-                        save_resume_to_db(st.session_state.resume_data)
-                        st.success("✅ Saved!")
-
-            with col2:
-                new_profile_name = st.text_input(
-                    "Or save as:",
-                    placeholder="Custom profile name",
-                    key="new_profile_name"
-                )
-                if st.button("💾 Save New", use_container_width=True):
-                    if new_profile_name.strip():
-                        success, result = save_resume_as_new_profile(st.session_state.resume_data, new_profile_name.strip())
-                        if success:
-                            st.success(f"✅ Saved as: {new_profile_name}")
-                        else:
-                            st.error(f"❌ {result}")
-                    else:
-                        st.error("Enter a profile name")
-        except Exception as e:
-            st.info("Profile saving not available")
-
-    st.info("👉 **Next:** Go to 'AI Enhancement' to optimize your resume for a specific job")
 
 def job_matching_page():
     st.header("🤖 Step 2: AI Enhancement")
@@ -630,14 +404,14 @@ def _render_ai_enhancement_section():
 
             # Get company analysis
             from positioning_coach import PositioningCoach
-            positioning_coach = PositioningCoach()
+            positioning_coach = PositioningCoach(api_key=_get_openai_api_key())
             company_analysis = positioning_coach.company_analyzer.analyze_company_dna(job_description, company_name)
 
             progress_bar.progress(20)
             status_text.text("🔧 Enhancing content...")
 
             # Directly enhance resume_data in place
-            _apply_ai_enhancements_directly(
+            failed_sections = _apply_ai_enhancements_directly(
                 st.session_state.resume_data,
                 job_description,
                 company_analysis,
@@ -650,7 +424,15 @@ def _render_ai_enhancement_section():
 
             st.session_state.content_enhanced = True
             st.session_state.company_analysis = company_analysis
-            st.success("✅ Resume enhanced! Go to 'Review & Finalize' to edit.")
+
+            if failed_sections:
+                st.warning(
+                    "⚠️ Enhanced most of your resume, but these sections kept their "
+                    f"original text because the AI call failed: {', '.join(failed_sections)}. "
+                    "You can retry, or edit them manually in 'Review & Edit'."
+                )
+            else:
+                st.success("✅ Resume enhanced! Go to 'Review & Finalize' to edit.")
 
         except Exception as e:
             st.error(f"Enhancement failed: {str(e)}")
@@ -661,10 +443,16 @@ def _render_ai_enhancement_section():
 
 
 def _apply_ai_enhancements_directly(resume_data, job_description, company_analysis, progress_bar, status_text):
-    """Apply AI enhancements directly to resume_data (modifies in place)"""
+    """Apply AI enhancements directly to resume_data (modifies in place).
+
+    Returns the list of section labels that failed to enhance (kept as original
+    content) so the caller can tell the user exactly what didn't get updated,
+    instead of silently leaving stale content with no indication anything failed.
+    """
 
     # Global verb tracking
     used_verbs = set()
+    failed_sections = []
 
     # Extract keywords
     job_keywords, tech_keywords = _extract_job_keywords_and_tech_terms(job_description)
@@ -694,7 +482,8 @@ def _apply_ai_enhancements_directly(resume_data, job_description, company_analys
         update_progress("🔤 Enhancing summary...")
         sentences = resume_data['summary']['sentences']
         enhanced_sentences, used_verbs = _enhance_content_with_targeted_strategy(
-            sentences, job_description, company_analysis, "summary sentence", used_verbs, job_keywords, tech_keywords
+            sentences, job_description, company_analysis, "summary sentence", used_verbs, job_keywords, tech_keywords,
+            failed_sections, "Summary"
         )
         resume_data['summary']['sentences'] = enhanced_sentences
 
@@ -705,9 +494,10 @@ def _apply_ai_enhancements_directly(resume_data, job_description, company_analys
             # Enhance accomplishments
             if exp.get('accomplishments'):
                 update_progress(f"💼 Enhancing {exp.get('position', 'role')}...")
+                exp_label = f"{exp.get('position', 'Role')} accomplishments"
                 enhanced_acc, used_verbs = _enhance_content_with_targeted_strategy(
                     exp['accomplishments'], job_description, company_analysis, "accomplishment",
-                    used_verbs, job_keywords, tech_keywords
+                    used_verbs, job_keywords, tech_keywords, failed_sections, exp_label
                 )
                 resume_data['experience'][exp_idx]['accomplishments'] = enhanced_acc
 
@@ -720,7 +510,7 @@ def _apply_ai_enhancements_directly(resume_data, job_description, company_analys
             update_progress("🔤 Enhancing role summaries...")
             enhanced_role_summaries, used_verbs = _enhance_content_with_targeted_strategy(
                 all_role_summaries, job_description, company_analysis, "role summary",
-                used_verbs, job_keywords, tech_keywords
+                used_verbs, job_keywords, tech_keywords, failed_sections, "Role summaries"
             )
             # Apply back
             for exp_idx, enhanced_summary in enhanced_role_summaries.items():
@@ -731,11 +521,14 @@ def _apply_ai_enhancements_directly(resume_data, job_description, company_analys
         for proj_idx, proj in enumerate(resume_data['projects']):
             if proj.get('descriptions') and proj['descriptions']:
                 update_progress(f"🚀 Enhancing {proj.get('name', 'project')}...")
+                proj_label = f"{proj.get('name', 'Project')} description"
                 enhanced_desc, used_verbs = _enhance_content_with_targeted_strategy(
                     proj['descriptions'][0], job_description, company_analysis, "project description",
-                    used_verbs, job_keywords, tech_keywords
+                    used_verbs, job_keywords, tech_keywords, failed_sections, proj_label
                 )
                 resume_data['projects'][proj_idx]['descriptions'] = [enhanced_desc]
+
+    return failed_sections
 
 
 def edit_markdown_page():
@@ -786,7 +579,76 @@ def edit_markdown_page():
     # Show preview
     with st.expander("👀 Resume Preview", expanded=True):
         st.markdown(final_markdown)
-    
+
+    st.divider()
+    _render_profile_management()
+
+
+def _render_profile_management():
+    """Save the current resume as a named profile, or reload a previously saved one.
+
+    Profiles are scoped to this browser session (see browser_session_id) so
+    they stay private on a shared/public deployment.
+    """
+    session_id = st.session_state.browser_session_id
+
+    with st.expander("💾 Save / Load Profile (Optional)", expanded=False):
+        st.markdown("*Save your resume in this browser session to reload it later without re-uploading*")
+
+        save_col, load_col = st.columns(2)
+
+        with save_col:
+            st.markdown("**Save**")
+            if st.session_state.get('current_profile_id'):
+                if st.button(f"💾 Update '{st.session_state.current_profile_name}'", use_container_width=True):
+                    success = save_resume_to_db(
+                        session_id,
+                        st.session_state.resume_data,
+                        profile_id=st.session_state.current_profile_id
+                    )
+                    st.success("✅ Updated!") if success else st.error("❌ Update failed")
+
+            new_profile_name = st.text_input(
+                "Save as new profile:",
+                placeholder="Custom profile name",
+                key="new_profile_name"
+            )
+            if st.button("💾 Save New", use_container_width=True):
+                if new_profile_name.strip():
+                    success, result = save_resume_as_new_profile(
+                        session_id, st.session_state.resume_data, new_profile_name.strip()
+                    )
+                    if success:
+                        st.session_state.current_profile_id = result
+                        st.session_state.current_profile_name = new_profile_name.strip()
+                        st.success(f"✅ Saved as: {new_profile_name}")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {result}")
+                else:
+                    st.error("Enter a profile name")
+
+        with load_col:
+            st.markdown("**Load**")
+            profiles = load_resume_profiles(session_id)
+            if not profiles:
+                st.caption("No saved profiles yet in this session.")
+            else:
+                profile_options = {f"{name} (#{pid})": pid for pid, name in profiles}
+                selected_label = st.selectbox("Saved profiles:", list(profile_options.keys()))
+                if st.button("📂 Load Selected Profile", use_container_width=True):
+                    profile_id = profile_options[selected_label]
+                    loaded_data = get_resume_by_id(session_id, profile_id)
+                    if loaded_data:
+                        st.session_state.resume_data = loaded_data
+                        st.session_state.current_profile_id = profile_id
+                        st.session_state.current_profile_name = selected_label.rsplit(" (#", 1)[0]
+                        st.session_state.content_enhanced = False
+                        st.success(f"✅ Loaded '{selected_label}'")
+                        st.rerun()
+                    else:
+                        st.error("❌ Could not load that profile")
+
 
 def _generate_custom_filename():
     """Generate custom PDF filename: {Name}_{Company}_{Role}.pdf"""
@@ -1300,7 +1162,7 @@ def _enhance_single_content(content, job_description, company_analysis, content_
         from openai import OpenAI
         import os
         
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=_get_openai_api_key())
         model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
         
         company_type = company_analysis.get('company_type', 'tech')
@@ -1336,23 +1198,23 @@ def _enhance_single_content(content, job_description, company_analysis, content_
         print(f"Enhancement failed for {content_type}: {e}")
         return content  # Return original if enhancement fails
 
-def _enhance_content_with_targeted_strategy(content, job_description, company_analysis, content_type, used_verbs, job_keywords, tech_keywords):
+def _enhance_content_with_targeted_strategy(content, job_description, company_analysis, content_type, used_verbs, job_keywords, tech_keywords, failed_sections=None, section_label=None):
     """Use content-type-specific enhancement strategies for nuanced improvements"""
 
     # Route to specialized enhancement based on content type
     if content_type == "summary sentence":
-        return _enhance_profile_summary(content, job_description, company_analysis, used_verbs)
+        return _enhance_profile_summary(content, job_description, company_analysis, used_verbs, failed_sections, section_label)
     elif content_type == "accomplishment":
-        return _enhance_role_accomplishment(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords)
+        return _enhance_role_accomplishment(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords, failed_sections, section_label)
     elif content_type == "role summary":
-        return _enhance_role_summary(content, job_description, company_analysis, used_verbs)
+        return _enhance_role_summary(content, job_description, company_analysis, used_verbs, failed_sections, section_label)
     elif content_type == "project description":
-        return _enhance_project_description(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords)
+        return _enhance_project_description(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords, failed_sections, section_label)
     else:
         # Fallback to general enhancement
-        return _enhance_general_content(content, job_description, company_analysis, content_type, used_verbs)
+        return _enhance_general_content(content, job_description, company_analysis, content_type, used_verbs, failed_sections, section_label)
 
-def _enhance_profile_summary(content, job_description, company_analysis, used_verbs):
+def _enhance_profile_summary(content, job_description, company_analysis, used_verbs, failed_sections=None, section_label=None):
     """Enhance profile summary focusing on top_values and hidden_preferences"""
 
     try:
@@ -1360,7 +1222,7 @@ def _enhance_profile_summary(content, job_description, company_analysis, used_ve
         from openai import OpenAI
         import os
 
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=_get_openai_api_key())
         model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
         company_type = company_analysis.get('company_type', 'tech')
@@ -1403,9 +1265,11 @@ def _enhance_profile_summary(content, job_description, company_analysis, used_ve
 
     except Exception as e:
         print(f"Profile summary enhancement failed: {e}")
-        return content
+        if failed_sections is not None:
+            failed_sections.append(section_label or "Summary")
+        return content, used_verbs
 
-def _enhance_role_accomplishment(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords):
+def _enhance_role_accomplishment(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords, failed_sections=None, section_label=None):
     """Enhance role accomplishments focusing on job_keywords and required skills"""
 
     try:
@@ -1413,7 +1277,7 @@ def _enhance_role_accomplishment(content, job_description, company_analysis, use
         from openai import OpenAI
         import os
 
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=_get_openai_api_key())
         model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
         company_type = company_analysis.get('company_type', 'tech')
@@ -1461,9 +1325,11 @@ def _enhance_role_accomplishment(content, job_description, company_analysis, use
 
     except Exception as e:
         print(f"Accomplishment enhancement failed: {e}, Input = {input}")
-        return content
+        if failed_sections is not None:
+            failed_sections.append(section_label or "Accomplishments")
+        return content, used_verbs
 
-def _enhance_role_summary(content, job_description, company_analysis, used_verbs):
+def _enhance_role_summary(content, job_description, company_analysis, used_verbs, failed_sections=None, section_label=None):
     """Enhance role summaries focusing on golden_signals and positioning_advice"""
 
     try:
@@ -1471,7 +1337,7 @@ def _enhance_role_summary(content, job_description, company_analysis, used_verbs
         from openai import OpenAI
         import os
 
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=_get_openai_api_key())
         model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
         company_type = company_analysis.get('company_type', 'tech')
@@ -1525,9 +1391,15 @@ def _enhance_role_summary(content, job_description, company_analysis, used_verbs
 
     except Exception as e:
         print(f"Role summary enhancement failed: {e}")
-        return content
+        if failed_sections is not None:
+            failed_sections.append(section_label or "Role summaries")
+        # content is {exp_idx: [role_summary, ...]}; the caller always merges the
+        # returned value into one string per key (as the success path does), so
+        # collapse here too instead of handing back a list where a string is expected.
+        fallback = {k: " ".join(v) if isinstance(v, list) else v for k, v in content.items()}
+        return fallback, used_verbs
 
-def _enhance_project_description(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords):
+def _enhance_project_description(content, job_description, company_analysis, used_verbs, job_keywords, tech_keywords, failed_sections=None, section_label=None):
     """Enhance project descriptions focusing on tech_stack alignment (max 2 sentences)"""
 
     try:
@@ -1535,7 +1407,7 @@ def _enhance_project_description(content, job_description, company_analysis, use
         from openai import OpenAI
         import os
 
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=_get_openai_api_key())
         model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
         company_type = company_analysis.get('company_type', 'tech')
@@ -1570,9 +1442,11 @@ def _enhance_project_description(content, job_description, company_analysis, use
 
     except Exception as e:
         print(f"Project description enhancement failed: {e}")
-        return content
+        if failed_sections is not None:
+            failed_sections.append(section_label or "Project description")
+        return content, used_verbs
 
-def _enhance_general_content(content, job_description, company_analysis, content_type, used_verbs):
+def _enhance_general_content(content, job_description, company_analysis, content_type, used_verbs, failed_sections=None, section_label=None):
     """Fallback general enhancement for unknown content types"""
 
     try:
@@ -1580,7 +1454,7 @@ def _enhance_general_content(content, job_description, company_analysis, content
         from openai import OpenAI
         import os
 
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(api_key=_get_openai_api_key())
         model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
         company_type = company_analysis.get('company_type', 'tech')
@@ -1609,7 +1483,9 @@ def _enhance_general_content(content, job_description, company_analysis, content
 
     except Exception as e:
         print(f"General enhancement failed: {e}")
-        return content
+        if failed_sections is not None:
+            failed_sections.append(section_label or content_type.title())
+        return content, used_verbs
 
 def _parse_enhancement_response(response, original_content, used_verbs, type = None):
     """Parse AI response and handle JSON parsing with fallbacks"""
@@ -1676,11 +1552,11 @@ def _parse_enhancement_response(response, original_content, used_verbs, type = N
                         # Try to extract verb
                         first_word = extracted_content.split()[0].rstrip('.,;:').lower()
                         used_verbs.add(first_word)
-                        return extracted_content
+                        return extracted_content, used_verbs
             except:
                 pass
 
-        return original_content
+        return original_content, used_verbs
     except Exception as e:
         print(f"Response parsing failed: {e}, {original_content}")
         return original_content
@@ -1715,7 +1591,7 @@ def _extract_job_keywords_and_tech_terms(job_description):
 
         # Extract general job keywords using AI
         try:
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            client = OpenAI(api_key=_get_openai_api_key())
             model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
             prompt = f"""
@@ -1787,6 +1663,17 @@ def _get_workflow_status():
         'enhanced': st.session_state.get('content_enhanced', False),
         'reviewed': st.session_state.resume_data is not None
     }
+
+def _render_step_status():
+    """Show which workflow steps are done so far, as a sidebar checklist"""
+    status = _get_workflow_status()
+    steps = [
+        ('uploaded', 'Upload resume'),
+        ('enhanced', 'AI-enhance for a job'),
+        ('reviewed', 'Review & export'),
+    ]
+    lines = [f"{'✅' if status[key] else '⬜'} {label}" for key, label in steps]
+    st.sidebar.caption("  \n".join(lines))
 
 def _has_content():
     """Check if resume has basic content"""
@@ -1978,8 +1865,7 @@ def cover_letter_page():
                             st.error(f"❌ Regeneration failed: {str(e)}")
 
         with col2:
-            # Copy to clipboard functionality (placeholder)
-            st.button("📋 Copy to Clipboard", help="Copy cover letter text (implementation needed)")
+            _copy_to_clipboard_button(st.session_state.generated_cover_letter, "📋 Copy to Clipboard", key="cover_letter")
 
 
 def answer_question_page():
@@ -2154,8 +2040,7 @@ def answer_question_page():
                             st.error(f"❌ Answer regeneration failed: {str(e)}")
 
         with col2:
-            # Copy to clipboard functionality (placeholder)
-            st.button("📋 Copy Answer", help="Copy answer text (implementation needed)")
+            _copy_to_clipboard_button(st.session_state.generated_answer, "📋 Copy Answer", key="answer")
 
 def _generate_cover_letter(resume_data, company_name, job_title, job_description, company_info, key_points, style, additional_instructions):
     """Generate cover letter using AI based on resume data and job requirements"""
@@ -2163,7 +2048,7 @@ def _generate_cover_letter(resume_data, company_name, job_title, job_description
     from openai import OpenAI
     import os
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key=_get_openai_api_key())
     model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
     # Extract key info from resume
@@ -2251,7 +2136,7 @@ def _generate_question_answer(resume_data, question_text, company_name, job_titl
     from openai import OpenAI
     import os
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key=_get_openai_api_key())
     model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
     # Extract key info from resume
