@@ -7,8 +7,8 @@ import re
 class CompanyAnalyzer:
     """Analyze job descriptions to understand company culture, values, and hidden preferences"""
     
-    def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    def __init__(self, api_key: str = None):
+        self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
         self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
         
         # Company type indicators

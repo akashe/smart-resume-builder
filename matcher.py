@@ -5,8 +5,8 @@ import json
 import re
 
 class JobMatcher:
-    def __init__(self):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    def __init__(self, api_key: str = None):
+        self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
         self.model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
     
     def match_resume_to_job(self, resume_data: Dict[str, Any], job_description: str) -> Dict[str, Any]:
